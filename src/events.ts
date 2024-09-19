@@ -1,6 +1,8 @@
 import { type ClientEvents, Events } from "discord.js";
 import client from "./client.ts";
 import buddhism from "./buddhism.ts";
+import math from "./math.ts";
+import oes from "./oes.ts";
 
 const reactions = {
   "(2|two)": buddhism.TWO_TRUTHS,
@@ -15,6 +17,8 @@ const reactions = {
   "(11|eleven)": buddhism.ELEVEN_WAYS_OF_TRANSFORMING_BODHISATTVA,
   "(12|twelve)": buddhism.TWELVE_LINKS_OF_DEPENDENT_ORIGINATION,
   "(13|thirteen)": buddhism.THIRTEEN_REALMS,
+  "([G|g]owri|[M|m]eda)": math.PEANO_AXIOMS.join("\n"),
+  "([J|j]esse|[C|c]hara)": oes.JESSE_ESCAPE,
 };
 
 export default {
@@ -23,8 +27,14 @@ export default {
     if (message.author.bot) return;
 
     for (const [pattern, text] of Object.entries(reactions)) {
-      if (new RegExp(pattern, "i").test(message.content))
-        await message.reply(text);
+      if (new RegExp(`\\b${pattern}\\b`, "i").test(message.content)) {
+        let reply: string = "";
+
+        if (Array.isArray(text)) reply = text[Math.floor(Math.random() * text.length)];
+        else reply = text;
+
+        await message.reply(reply);
+      }
     }
   },
 } satisfies {
