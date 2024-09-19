@@ -27,6 +27,7 @@ const rules = {
     "吃屎",
     "Oregon Episcopal Shit",
   ],
+  "[D|d]ustin": oes.DUSTIN_IMAGE,
 };
 
 export default {
