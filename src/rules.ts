@@ -36,7 +36,7 @@ const rules = {
   god: oes.DOG_IMG,
   richard: oes.RICHARD,
   genshin: memes.GENSHIN,
-  "原神": memes.GENSHIN,
+  "bad|sad|unfortunate": memes.BETTER_LUCK_NEXT_TIME,
 };
 
 const handleRules = async (msg: Message) => {

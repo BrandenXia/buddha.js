@@ -6,6 +6,7 @@ const GENSHIN = [
   "原神，启动！",
   "原来你也玩原神",
 ]
+const BETTER_LUCK_NEXT_TIME = "Better luck next time!";
 
 export default {
   MAN,
@@ -13,4 +14,5 @@ export default {
   MAMBA_OUT,
   KOBE,
   GENSHIN,
+  BETTER_LUCK_NEXT_TIME
 };
