@@ -1,4 +1,5 @@
 import type { Message } from "discord.js";
+import logger from "./logger.ts";
 
 type Handler = (msg: Message) => Promise<void>;
 
@@ -9,7 +10,9 @@ const commands: {
   lottery: async (msg: Message) => {
     const num = Math.floor(Math.random() * 1000); // 1/1000 chance of winning
 
-    if (num === 0) await msg.reply("Congratulations! You won the lottery!");
+    if (num === 0)
+      (await msg.reply("Congratulations! You won the lottery!")) &&
+        logger.info("Lottery winner!");
     else await msg.reply("Better luck next time!");
   },
 };
@@ -18,6 +21,7 @@ const handleCommands = async (msg: Message) => {
   if (!msg.content.startsWith("!")) return;
 
   const command = msg.content.slice(1);
+  logger.debug(`Received command: ${command}`);
 
   if (Object.keys(commands).includes(command)) {
     const reaction = commands[command];

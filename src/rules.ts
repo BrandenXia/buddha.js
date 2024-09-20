@@ -3,6 +3,7 @@ import math from "./constants/math.ts";
 import oes from "./constants/oes.ts";
 import type { Message } from "discord.js";
 import macbeth from "./constants/macbeth.ts";
+import logger from "./logger.ts";
 
 const rules = {
   "(2|two)": buddhism.TWO_TRUTHS,
@@ -32,6 +33,8 @@ const rules = {
 const handleRules = async (msg: Message) => {
   for (const [pattern, text] of Object.entries(rules)) {
     if (new RegExp(`\\b${pattern}\\b`, "i").test(msg.content)) {
+      logger.debug(`Pattern ${pattern} matched`);
+
       let reply: string = "";
 
       if (Array.isArray(text))
