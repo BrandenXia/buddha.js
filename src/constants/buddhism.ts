@@ -2,6 +2,7 @@ const TWO_TRUTHS = "There is self. There is no self.";
 const THREE_POISONS = "Greed, Aggression, Ignorance";
 const FOUR_NOBLE_TRUTHS = "Suffering, Cause of Suffering, Cessation of Suffering, Path to Cessation of Suffering";
 const FIVE_AGGREGATES = "Form, Feeling, Perception, Mental Formation, Consciousness";
+const FIVE_DUSTS = "Form, Sound, Smell, Taste, Touch";
 const SIX_REALMS = "Gods, Demi-Gods, Humans, Animals, Hungry Ghosts, Hell Beings";
 const SEVEN_FACTORS_OF_ENLIGHTENMENT = "Mindfulness, Investigation, Energy, Joy, Tranquility, Concentration, Equanimity";
 const EIGHTFOLD_PATH = "Right View, Right Intention, Right Speech, Right Action, Right Livelihood, Right Effort, Right Mindfulness, Right Concentration";
@@ -16,6 +17,7 @@ export default {
   THREE_POISONS,
   FOUR_NOBLE_TRUTHS,
   FIVE_AGGREGATES,
+  FIVE_DUSTS,
   SIX_REALMS,
   SEVEN_FACTORS_OF_ENLIGHTENMENT,
   EIGHTFOLD_PATH,

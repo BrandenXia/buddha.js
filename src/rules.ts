@@ -4,12 +4,13 @@ import oes from "./constants/oes.ts";
 import type { Message } from "discord.js";
 import macbeth from "./constants/macbeth.ts";
 import logger from "./logger.ts";
+import memes from "./constants/memes.ts";
 
 const rules = {
   "(2|two)": buddhism.TWO_TRUTHS,
   "(3|three)": buddhism.THREE_POISONS,
   "(4|four)": buddhism.FOUR_NOBLE_TRUTHS,
-  "(5|five)": buddhism.FIVE_AGGREGATES,
+  "(5|five)": [buddhism.FIVE_AGGREGATES, buddhism.FIVE_DUSTS],
   "(6|six)": buddhism.SIX_REALMS,
   "(7|seven)": buddhism.SEVEN_FACTORS_OF_ENLIGHTENMENT,
   "(8|eight)": buddhism.EIGHTFOLD_PATH,
@@ -22,12 +23,20 @@ const rules = {
   "(Gowri|Meda|concept)": math.PEANO_AXIOMS,
   "(Jesse|Chara|640550361853198348)": oes.JESSE,
   OES: oes.OES,
-  Dustin: oes.DUSTIN_IMAGE,
+  Dustin: oes.DUSTIN_IMG,
   "(McKale|Butler)": oes.BUTLER,
   shit: "我爱吃屎",
   "energy ?bubble": oes.PASSWORDS,
   macbeth: macbeth.TO_BE_THUS,
   banquo: macbeth.THOU_HAST_IT_NOW,
+  man: memes.WHAT_CAN_I_SAY,
+  mamba: memes.KOBE,
+  "what can i say": memes.MAMBA_OUT,
+  kobe: memes.KOBE,
+  god: oes.DOG_IMG,
+  richard: oes.RICHARD,
+  genshin: memes.GENSHIN,
+  "原神": memes.GENSHIN,
 };
 
 const handleRules = async (msg: Message) => {
