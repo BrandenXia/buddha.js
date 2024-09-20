@@ -1,4 +1,4 @@
-import { Client, GatewayIntentBits } from "discord.js";
+import { ActivityType, Client, GatewayIntentBits } from "discord.js";
 
 const client = new Client({
   intents: [
@@ -6,6 +6,15 @@ const client = new Client({
     GatewayIntentBits.GuildMessages,
     GatewayIntentBits.MessageContent,
   ],
+  presence: {
+    activities: [
+      {
+        name: "Siddhartha",
+        state: "Eating shit",
+        type: ActivityType.Custom,
+      },
+    ],
+  },
 });
 
 export default client;
