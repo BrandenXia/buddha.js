@@ -2,6 +2,9 @@
   "name": "buddha",
   "module": "src/index.ts",
   "type": "module",
+  "scripts": {
+    "serve": "bun run src/index.ts"
+  },
   "devDependencies": {
     "@types/bun": "latest",
     "prettier": "3.3.3"
@@ -10,6 +13,9 @@
     "typescript": "^5.0.0"
   },
   "dependencies": {
-    "discord.js": "^14.16.2"
+    "bufferutil": "^4.0.8",
+    "discord.js": "^14.16.2",
+    "utf-8-validate": "^6.0.4",
+    "zlib-sync": "^0.1.9"
   }
 }

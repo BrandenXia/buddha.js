@@ -16,12 +16,14 @@ const rules = {
   "(11|eleven)": buddhism.ELEVEN_WAYS_OF_TRANSFORMING_BODHISATTVA,
   "(12|twelve)": buddhism.TWELVE_LINKS_OF_DEPENDENT_ORIGINATION,
   "(13|thirteen)": buddhism.THIRTEEN_REALMS,
-  "[P|p]eano": math.PEANO_AXIOMS,
-  "([G|g]owri|[M|m]eda|[C|c]oncept)": math.PEANO_AXIOMS,
-  "([J|j]esse|[C|c]hara|640550361853198348)": oes.JESSE,
-  "[O|o][E|e][S|s]": oes.OES,
-  "[D|d]ustin": oes.DUSTIN_IMAGE,
-  "([M|m]c[K|k]ale|[B|b]utler)": oes.BUTLER,
+  "Peano": math.PEANO_AXIOMS,
+  "(Gowri|Meda|concept)": math.PEANO_AXIOMS,
+  "(Jesse|Chara|640550361853198348)": oes.JESSE,
+  "OES": oes.OES,
+  "Dustin": oes.DUSTIN_IMAGE,
+  "(McKale|Butler)": oes.BUTLER,
+  "shit": "我爱吃屎",
+  "energy ?bubble": oes.PASSWORDS
 };
 
 const handleRules = async (msg: Message) => {

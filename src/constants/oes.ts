@@ -14,10 +14,16 @@ const OES = [
 ];
 const BUTLER = ["shit", "傻逼", "eat shit", "吃屎", ":middle_finger:", "fuck"];
 
+const PASSWORDS = [
+  "CorkReform",
+  "Beetle"
+]
+
 export default {
   JESSE_ESCAPE,
   JESSE,
   DUSTIN_IMAGE,
   OES,
-  BUTLER
+  BUTLER,
+  PASSWORDS
 };
