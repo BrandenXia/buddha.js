@@ -2,6 +2,7 @@ import buddhism from "./constants/buddhism.ts";
 import math from "./constants/math.ts";
 import oes from "./constants/oes.ts";
 import type { Message } from "discord.js";
+import macbeth from "./constants/macbeth.ts";
 
 const rules = {
   "(2|two)": buddhism.TWO_TRUTHS,
@@ -16,14 +17,16 @@ const rules = {
   "(11|eleven)": buddhism.ELEVEN_WAYS_OF_TRANSFORMING_BODHISATTVA,
   "(12|twelve)": buddhism.TWELVE_LINKS_OF_DEPENDENT_ORIGINATION,
   "(13|thirteen)": buddhism.THIRTEEN_REALMS,
-  "Peano": math.PEANO_AXIOMS,
+  Peano: math.PEANO_AXIOMS,
   "(Gowri|Meda|concept)": math.PEANO_AXIOMS,
   "(Jesse|Chara|640550361853198348)": oes.JESSE,
-  "OES": oes.OES,
-  "Dustin": oes.DUSTIN_IMAGE,
+  OES: oes.OES,
+  Dustin: oes.DUSTIN_IMAGE,
   "(McKale|Butler)": oes.BUTLER,
-  "shit": "我爱吃屎",
-  "energy ?bubble": oes.PASSWORDS
+  shit: "我爱吃屎",
+  "energy ?bubble": oes.PASSWORDS,
+  macbeth: macbeth.TO_BE_THUS,
+  banquo: macbeth.THOU_HAST_IT_NOW,
 };
 
 const handleRules = async (msg: Message) => {
