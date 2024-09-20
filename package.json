@@ -16,6 +16,7 @@
   },
   "dependencies": {
     "bufferutil": "^4.0.8",
+    "bun": "^1.1.29",
     "discord.js": "^14.16.2",
     "pino": "^9.4.0",
     "utf-8-validate": "^6.0.4"
