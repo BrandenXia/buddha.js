@@ -3,56 +3,54 @@ import math from "./constants/math.ts";
 import oes from "./constants/oes.ts";
 import type { Message } from "discord.js";
 import macbeth from "./constants/macbeth.ts";
-import logger from "./logger.ts";
 import memes from "./constants/memes.ts";
 
-const rules = {
-  "(2|two)": buddhism.TWO_TRUTHS,
-  "(3|three)": buddhism.THREE_POISONS,
-  "(4|four)": buddhism.FOUR_NOBLE_TRUTHS,
-  "(5|five)": [buddhism.FIVE_AGGREGATES, buddhism.FIVE_DUSTS],
-  "(6|six)": buddhism.SIX_REALMS,
-  "(7|seven)": buddhism.SEVEN_FACTORS_OF_ENLIGHTENMENT,
-  "(8|eight)": buddhism.EIGHTFOLD_PATH,
-  "(9|nine)": buddhism.NINE_GRADES_OF_SAMADHI,
-  "(10|ten)": buddhism.TEN_PARAMITAS,
-  "(11|eleven)": buddhism.ELEVEN_WAYS_OF_TRANSFORMING_BODHISATTVA,
-  "(12|twelve)": buddhism.TWELVE_LINKS_OF_DEPENDENT_ORIGINATION,
-  "(13|thirteen)": buddhism.THIRTEEN_REALMS,
-  Peano: math.PEANO_AXIOMS,
-  "(Gowri|Meda|concept)": math.PEANO_AXIOMS,
-  "(Jesse|Chara|640550361853198348)": oes.JESSE,
-  OES: oes.OES,
-  Dustin: oes.DUSTIN_IMG,
-  "(McKale|Butler)": oes.BUTLER,
-  shit: "我爱吃屎",
-  "energy ?bubble": oes.PASSWORDS,
-  macbeth: macbeth.TO_BE_THUS,
-  banquo: macbeth.THOU_HAST_IT_NOW,
-  man: memes.WHAT_CAN_I_SAY,
-  mamba: memes.KOBE,
-  "what can i say": memes.MAMBA_OUT,
-  kobe: memes.KOBE,
-  god: oes.DOG_IMG,
-  richard: oes.RICHARD,
-  genshin: memes.GENSHIN,
-  "bad|sad|unfortunate": memes.BETTER_LUCK_NEXT_TIME,
-};
+const rules: [RegExp, string | string[]][] = [
+  [/\b2|two\b/i, buddhism.TWO_TRUTHS],
+  [/\b(3|three)\b/i, buddhism.THREE_POISONS],
+  [/\b(4|four)\b/i, buddhism.FOUR_NOBLE_TRUTHS],
+  [/\b(5|five)\b/i, [buddhism.FIVE_AGGREGATES, buddhism.FIVE_DUSTS]],
+  [/\b(6|six)\b/i, buddhism.SIX_REALMS],
+  [/\b(7|seven)\b/i, buddhism.SEVEN_FACTORS_OF_ENLIGHTENMENT],
+  [/\b(8|eight)\b/i, buddhism.EIGHTFOLD_PATH],
+  [/\b(9|nine)\b/i, buddhism.NINE_GRADES_OF_SAMADHI],
+  [/\b(10|ten)\b/i, buddhism.TEN_PARAMITAS],
+  [/\b(11|eleven)\b/i, buddhism.ELEVEN_WAYS_OF_TRANSFORMING_BODHISATTVA],
+  [/\b(12|twelve)\b/i, buddhism.TWELVE_LINKS_OF_DEPENDENT_ORIGINATION],
+  [/\b(13|thirteen)\b/i, buddhism.THIRTEEN_REALMS],
+  [/\b(Gowri|Meda|concept|Peano)\b/i, math.PEANO_AXIOMS],
+  [/\b(Jesse|Chara|640550361853198348)\b/i, oes.JESSE],
+  [/\bOES\b/i, oes.OES],
+  [/\bDustin\b/i, oes.DUSTIN_IMG],
+  [/\b(McKale|Butler)\b/i, oes.BUTLER],
+  [/\bshit\b/i, "我爱吃屎"],
+  [/\benergy ?bubble\b/i, oes.PASSWORDS],
+  [/\bmacbeth\b/i, macbeth.TO_BE_THUS],
+  [/\bbanquo\b/i, macbeth.THOU_HAST_IT_NOW],
+  [/\bman\b/i, memes.WHAT_CAN_I_SAY],
+  [/\b(mamba|kobe)\b/i, memes.KOBE],
+  [/坠机/i, memes.KOBE],
+  [/\bwhat can i say\b/i, memes.MAMBA_OUT],
+  [/\bgod\b/i, oes.DOG_IMG],
+  [/\brichard\b/i, oes.RICHARD],
+  [/\bgenshin\b/i, memes.GENSHIN],
+  [/原神/i, memes.GENSHIN],
+  [/\b(bad|sad|unfortunate)\b/i, memes.BETTER_LUCK_NEXT_TIME],
+  [/惨/i, memes.BETTER_LUCK_NEXT_TIME],
+];
 
 const handleRules = async (msg: Message) => {
-  for (const [pattern, text] of Object.entries(rules)) {
-    if (new RegExp(`\\b${pattern}\\b`, "i").test(msg.content)) {
-      logger.debug(`Pattern ${pattern} matched`);
+  const matched = rules.find(([regex]) => regex.test(msg.content));
+  if (!matched) return;
 
-      let reply: string = "";
+  let reply: string;
+  const reaction = matched[1];
 
-      if (Array.isArray(text))
-        reply = text[Math.floor(Math.random() * text.length)];
-      else reply = text;
+  if (Array.isArray(reaction))
+    reply = reaction[Math.floor(Math.random() * reaction.length)];
+  else reply = reaction;
 
-      await msg.reply(reply);
-    }
-  }
+  await msg.reply(reply);
 };
 
 export default handleRules;
