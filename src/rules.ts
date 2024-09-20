@@ -6,7 +6,7 @@ import macbeth from "./constants/macbeth.ts";
 import memes from "./constants/memes.ts";
 
 const rules: [RegExp, string | string[]][] = [
-  [/\b2|two\b/i, buddhism.TWO_TRUTHS],
+  [/\b(2|two)\b/i, buddhism.TWO_TRUTHS],
   [/\b(3|three)\b/i, buddhism.THREE_POISONS],
   [/\b(4|four)\b/i, buddhism.FOUR_NOBLE_TRUTHS],
   [/\b(5|five)\b/i, [buddhism.FIVE_AGGREGATES, buddhism.FIVE_DUSTS]],
