@@ -5,6 +5,24 @@ import { LotteryLeaderboard } from "./db.ts";
 
 type CmdHandler = (msg: Message, args: string[]) => Promise<void>;
 
+const buildLeaderboardEntry = async (
+  msg: Message,
+  entry: LotteryLeaderboard,
+  i: number,
+) => {
+  const username = (
+    msg.guild?.members.cache.get(entry.get("userId") as string) ??
+    (await msg.guild?.members.fetch(entry.get("userId") as string))
+  )?.user.tag;
+  const won = entry.get("won") as number;
+  const tried = entry.get("tried") as number;
+  const winRate = (tried > 0 ? (won / tried) * 100 : 0).toFixed(2);
+  const lastMessageAt = entry.get("lastMessageAt") as Date;
+  const dateStr = lastMessageAt?.toLocaleString() ?? "N/A";
+
+  return `${i + 1}. ${username} - ${won} wins / ${tried} tries (${winRate}%) - Last try at: ${dateStr}`;
+};
+
 const commands: {
   [key: string]: string | CmdHandler;
 } = {
@@ -38,22 +56,13 @@ const commands: {
 
     const leaderboardStr =
       leaderboard.length > 0
-        ? leaderboard
-            .map((entry, i) => {
-              const username = msg.guild?.members.cache.get(
-                entry.get("userId") as string,
-              )?.user.tag;
-              if (!username)
-                msg.guild?.members.fetch(entry.get("userId") as string);
-              const won = entry.get("won") as number;
-              const tried = entry.get("tried") as number;
-              const winRate = (tried > 0 ? (won / tried) * 100 : 0).toFixed(2);
-              const lastMessageAt = entry.get("lastMessageAt") as Date;
-              const dateStr = lastMessageAt?.toLocaleString() ?? "N/A";
-
-              return `${i + 1}. ${username} - ${won} wins / ${tried} tries (${winRate}%) - Last message at: ${dateStr}`;
-            })
-            .join("\n")
+        ? (
+            await Promise.all(
+              leaderboard.map((entry, i) =>
+                buildLeaderboardEntry(msg, entry, i),
+              ),
+            )
+          ).join("\n")
         : "No entries yet!";
 
     await msg.reply(leaderboardStr);
