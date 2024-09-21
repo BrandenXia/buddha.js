@@ -26,8 +26,8 @@ const commands: {
     await leaderboard.increment({
       tried: 1,
       won: win ? 1 : 0,
-      lastMessageAt: new Date(),
     });
+    await leaderboard.update({ lastMessageAt: new Date() });
   },
   leaderboard: async (msg) => {
     const leaderboard = await LotteryLeaderboard.findAll({
@@ -40,10 +40,17 @@ const commands: {
       leaderboard.length > 0
         ? leaderboard
             .map((entry, i) => {
-              const user = msg.guild?.members.cache.get(
+              const username = msg.guild?.members.cache.get(
                 entry.get("userId") as string,
-              )?.user;
-              return `${i + 1}. ${user?.tag} - ${entry.get("won")} wins / ${entry.get("tried")} tries`;
+              )?.user?.tag;
+              const won = entry.get("won") as number;
+              const tried = entry.get("tried") as number;
+              const winRate = tried > 0 ? (won / tried) * 100 : 0;
+              const lastMessageAt = entry.get("lastMessageAt") as Date;
+
+              return `${i + 1}. ${username} - ${won} wins / ${tried} tries (${winRate.toFixed(
+                2,
+              )}%) - Last message at: ${lastMessageAt?.toLocaleString() ?? "N/A"}`;
             })
             .join("\n")
         : "No entries yet!";
