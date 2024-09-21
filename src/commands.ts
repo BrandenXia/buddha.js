@@ -47,12 +47,11 @@ const commands: {
                 msg.guild?.members.fetch(entry.get("userId") as string);
               const won = entry.get("won") as number;
               const tried = entry.get("tried") as number;
-              const winRate = tried > 0 ? (won / tried) * 100 : 0;
+              const winRate = (tried > 0 ? (won / tried) * 100 : 0).toFixed(2);
               const lastMessageAt = entry.get("lastMessageAt") as Date;
+              const dateStr = lastMessageAt?.toLocaleString() ?? "N/A";
 
-              return `${i + 1}. ${username} - ${won} wins / ${tried} tries (${winRate.toFixed(
-                2,
-              )}%) - Last message at: ${lastMessageAt?.toLocaleString() ?? "N/A"}`;
+              return `${i + 1}. ${username} - ${won} wins / ${tried} tries (${winRate}%) - Last message at: ${dateStr}`;
             })
             .join("\n")
         : "No entries yet!";
