@@ -9,7 +9,7 @@ export default {
   [Events.MessageCreate]: async (msg) => {
     if (msg.author.bot) return;
 
-    logger.debug(`Received message: ${msg.content}`);
+    logger.debug(`Received message: ${msg.content} from ${msg.author.tag}`);
 
     await handleCommands(msg);
     await handleRules(msg);
