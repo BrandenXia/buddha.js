@@ -18,6 +18,7 @@ const rules: [RegExp, string | string[]][] = [
   [/\b(11|eleven)\b/i, buddhism.ELEVEN_WAYS_OF_TRANSFORMING_BODHISATTVA],
   [/\b(12|twelve)\b/i, buddhism.TWELVE_LINKS_OF_DEPENDENT_ORIGINATION],
   [/\b(13|thirteen)\b/i, buddhism.THIRTEEN_REALMS],
+  [/\b(buddha|buddhism)\b/i, Object.values(buddhism)],
   [/\b(Gowri|Meda|concept|Peano)\b/i, math.PEANO_AXIOMS],
   [/\b(Jesse|Chara|640550361853198348)\b/i, oes.JESSE],
   [/\bOES\b/i, oes.OES],
@@ -29,7 +30,7 @@ const rules: [RegExp, string | string[]][] = [
   [/\bbanquo\b/i, macbeth.THOU_HAST_IT_NOW],
   [/\bman\b/i, memes.WHAT_CAN_I_SAY],
   [/\b(mamba|kobe)\b/i, memes.KOBE],
-  [/坠机/i, memes.KOBE],
+  [/坠机|肘击|科比/i, memes.KOBE],
   [/\bwhat can i say\b/i, memes.MAMBA_OUT],
   [/\bgod\b/i, oes.DOG_IMG],
   [/\brichard\b/i, oes.RICHARD],
@@ -37,6 +38,8 @@ const rules: [RegExp, string | string[]][] = [
   [/原神/i, memes.GENSHIN],
   [/\b(bad|sad|unfortunate)\b/i, memes.BETTER_LUCK_NEXT_TIME],
   [/惨/i, memes.BETTER_LUCK_NEXT_TIME],
+  [/\bcoconut\b/i, memes.COCONUT],
+  [/椰子/i, memes.COCONUT],
 ];
 
 const handleRules = async (msg: Message) => {

@@ -7,6 +7,7 @@ const GENSHIN = [
   "原来你也玩原神",
 ]
 const BETTER_LUCK_NEXT_TIME = "Better luck next time!";
+const COCONUT = "I LOVE COCONUT!!!";
 
 export default {
   MAN,
@@ -14,5 +15,6 @@ export default {
   MAMBA_OUT,
   KOBE,
   GENSHIN,
-  BETTER_LUCK_NEXT_TIME
+  BETTER_LUCK_NEXT_TIME,
+  COCONUT,
 };
