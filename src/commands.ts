@@ -42,7 +42,9 @@ const commands: {
             .map((entry, i) => {
               const username = msg.guild?.members.cache.get(
                 entry.get("userId") as string,
-              )?.user?.tag;
+              )?.user.tag;
+              if (!username)
+                msg.guild?.members.fetch(entry.get("userId") as string);
               const won = entry.get("won") as number;
               const tried = entry.get("tried") as number;
               const winRate = tried > 0 ? (won / tried) * 100 : 0;
