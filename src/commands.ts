@@ -39,10 +39,11 @@ const commands: {
     const leaderboardStr =
       leaderboard.length > 0
         ? leaderboard
-            .map((entry, i) => {
-              const username = msg.guild?.members.cache.get(
-                entry.get("userId") as string,
-              )?.user?.tag;
+            .map(async (entry, i) => {
+              const username = (
+                msg.guild?.members.cache.get(entry.get("userId") as string) ??
+                (await msg.guild?.members.fetch(entry.get("userId") as string))
+              )?.user.tag;
               const won = entry.get("won") as number;
               const tried = entry.get("tried") as number;
               const winRate = tried > 0 ? (won / tried) * 100 : 0;
