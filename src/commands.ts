@@ -18,15 +18,19 @@ const commands: {
   },
   encrypt: async (msg, args) => {
     const text = args.join(" ");
-    const encrypted = await encrypt(text);
+    const encrypted = encrypt(text);
 
     await msg.reply(encrypted);
   },
   decrypt: async (msg, args) => {
     const text = args.join(" ");
-    const decrypted = await decrypt(text);
 
-    await msg.reply(decrypted);
+    try {
+      const decrypted = decrypt(text);
+      await msg.reply(decrypted);
+    } catch (e) {
+      await msg.reply("Invalid encrypted text");
+    }
   },
 };
 

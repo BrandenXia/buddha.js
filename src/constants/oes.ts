@@ -16,7 +16,7 @@ const BUTLER = ["shit", "傻逼", "eat shit", "吃屎", ":middle_finger:", "fuck
 const DOG_IMG =
   "https://cdn.discordapp.com/attachments/1029619825221316612/1286542186783051806/image.png?ex=66ee4948&is=66ecf7c8&hm=cf2b018246fa937ea227d57955ffa861aed6420e908c4f900c0f43a27c066eac&";
 const RICHARD = ":yum:"
-const EAT_SHIT = ["eat shit", "我爱吃屎"]
+const EAT_SHIT = ["eat shit", "我爱吃屎", "吃屎了呀"]
 
 const PASSWORDS = ["CorkReform", "Beetle"];
 
