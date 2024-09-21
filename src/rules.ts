@@ -45,7 +45,7 @@ const rules: [RegExp, string | string[]][] = [
   [/\bHell( +)?Beings?\b/i, oes.EAT_SHIT],
   [/\b724690248600256553\b/i, memes.BARK],
   [/\botto\b/i, memes.OTTO],
-  [/轮椅/, memes.OTTO],
+  [/轮椅|:wheelchair:/, memes.OTTO],
 ];
 
 const handleRules = async (msg: Message) => {
