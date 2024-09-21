@@ -1,88 +1,16 @@
 import type { Message } from "discord.js";
 import logger from "./logger.ts";
-import { decrypt, encrypt } from "./crypto.ts";
-import { LotteryLeaderboard } from "./db.ts";
+import lottery from "./commands/lottery.ts";
+import crypto from "./commands/crypto.ts";
 
 type CmdHandler = (msg: Message, args: string[]) => Promise<void>;
-
-const buildLeaderboardEntry = async (
-  msg: Message,
-  entry: LotteryLeaderboard,
-  i: number,
-) => {
-  const username = (
-    msg.guild?.members.cache.get(entry.get("userId") as string) ??
-    (await msg.guild?.members.fetch(entry.get("userId") as string))
-  )?.user.tag;
-  const won = entry.get("won") as number;
-  const tried = entry.get("tried") as number;
-  const winRate = (tried > 0 ? (won / tried) * 100 : 0).toFixed(2);
-  const lastMessageAt = entry.get("lastMessageAt") as Date;
-  const dateStr = lastMessageAt?.toLocaleString() ?? "N/A";
-
-  return `${i + 1}. ${username} - ${won} wins / ${tried} tries (${winRate}%) - Last try at: ${dateStr}`;
-};
 
 const commands: {
   [key: string]: string | CmdHandler;
 } = {
   ping: "pong",
-  lottery: async (msg) => {
-    const [leaderboard] = await LotteryLeaderboard.findOrCreate({
-      where: { userId: msg.author.id, guildId: msg.guild?.id },
-      defaults: { tried: 0, won: 0, lastMessageAt: null },
-    });
-
-    const num = Math.floor(Math.random() * 1000); // 1/1000 chance of winning
-    const win = num === 0;
-
-    if (win)
-      (await msg.reply("Congratulations! You won the lottery!")) &&
-        logger.info("Lottery winner!");
-    else await msg.reply("Better luck next time!");
-
-    await leaderboard.increment({
-      tried: 1,
-      won: win ? 1 : 0,
-    });
-    await leaderboard.update({ lastMessageAt: new Date() });
-  },
-  leaderboard: async (msg) => {
-    const leaderboard = await LotteryLeaderboard.findAll({
-      where: { guildId: msg.guild?.id },
-      order: [["won", "DESC"]],
-      limit: 10,
-    });
-
-    const leaderboardStr =
-      leaderboard.length > 0
-        ? (
-            await Promise.all(
-              leaderboard.map((entry, i) =>
-                buildLeaderboardEntry(msg, entry, i),
-              ),
-            )
-          ).join("\n")
-        : "No entries yet!";
-
-    await msg.reply(leaderboardStr);
-  },
-  encrypt: async (msg, args) => {
-    const text = args.join(" ");
-    const encrypted = encrypt(text);
-
-    await msg.reply(encrypted);
-  },
-  decrypt: async (msg, args) => {
-    const text = args.join(" ");
-
-    try {
-      const decrypted = decrypt(text);
-      await msg.reply(decrypted);
-    } catch (e) {
-      await msg.reply("Invalid encrypted text");
-    }
-  },
+  ...lottery,
+  ...crypto,
 };
 
 const handleCommands = async (msg: Message): Promise<boolean> => {
