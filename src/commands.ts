@@ -2,6 +2,7 @@ import type { Message } from "discord.js";
 import logger from "./logger.ts";
 import lottery from "./commands/lottery.ts";
 import crypto from "./commands/crypto.ts";
+import fortune from "./commands/fortune.ts";
 
 type CmdHandler = (msg: Message, args: string[]) => Promise<void>;
 
@@ -11,6 +12,7 @@ const commands: {
   ping: "pong",
   ...lottery,
   ...crypto,
+  ...fortune,
 };
 
 const handleCommands = async (msg: Message): Promise<boolean> => {
