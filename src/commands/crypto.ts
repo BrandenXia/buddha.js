@@ -1,14 +1,14 @@
 import { decrypt, encrypt } from "../crypto.ts";
-import type { Message } from "discord.js";
+import type { CmdHandler } from "../commands.ts";
 
-const handleEncrypt = async (msg: Message, args: string[]) => {
+const handleEncrypt: CmdHandler = async (msg, args) => {
   const text = args.join(" ");
   const encrypted = encrypt(text);
 
   await msg.reply(encrypted);
 };
 
-const handleDecrypt = async (msg: Message, args: string[]) => {
+const handleDecrypt: CmdHandler = async (msg, args) => {
   const text = args.join(" ");
 
   try {

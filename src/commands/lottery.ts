@@ -1,8 +1,10 @@
 import logger from "../logger.ts";
 import { LotteryLeaderboard } from "../db.ts";
 import type { Message } from "discord.js";
+import type { CmdHandler } from "../commands.ts";
+import { getDateStr } from "../utils.ts";
 
-const handleLottery = async (msg: Message) => {
+const handleLottery: CmdHandler = async (msg) => {
   const num = Math.floor(Math.random() * 1000); // 1/1000 chance of winning
   const win = num === 0;
 
@@ -36,12 +38,12 @@ const buildLeaderboardEntry = async (
   const tried = entry.get("tried") as number;
   const winRate = (tried > 0 ? (won / tried) * 100 : 0).toFixed(2);
   const lastMessageAt = entry.get("lastMessageAt") as Date;
-  const dateStr = lastMessageAt?.toLocaleString() ?? "N/A";
+  const dateStr = lastMessageAt ? getDateStr(lastMessageAt) : "N/A";
 
   return `${i + 1}. ${username} - ${won} wins / ${tried} tries (${winRate}%) - Last try at: ${dateStr}`;
 };
 
-const handleLeaderboard = async (msg: Message) => {
+const handleLeaderboard: CmdHandler = async (msg) => {
   const leaderboard = await LotteryLeaderboard.findAll({
     where: { guildId: msg.guild?.id },
     order: [["won", "DESC"]],
@@ -63,4 +65,4 @@ const handleLeaderboard = async (msg: Message) => {
 export default {
   lottery: handleLottery,
   leaderboard: handleLeaderboard,
-}
+};

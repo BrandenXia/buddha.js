@@ -30,3 +30,4 @@ const handleCommands = async (msg: Message): Promise<boolean> => {
 };
 
 export default handleCommands;
+export type { CmdHandler };
