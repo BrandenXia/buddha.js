@@ -11,6 +11,7 @@ const TEN_PARAMITAS = "Generosity, Discipline, Patience, Diligence, Meditative C
 const ELEVEN_WAYS_OF_TRANSFORMING_BODHISATTVA = "Giving, Moral Discipline, Patience, Effort, Concentration, Wisdom, Skillful Means, Aspiration, Power, Knowledge, Primordial Wisdom";
 const TWELVE_LINKS_OF_DEPENDENT_ORIGINATION = "Ignorance, Formations, Consciousness, Name and Form, Six Senses, Contact, Feeling, Craving, Clinging, Becoming, Birth, Aging and Death";
 const THIRTEEN_REALMS = "Hell, Hungry Ghost, Animal, Human, Asura, God, Formless Realm, Infinite Space, Infinite Consciousness, Nothingness, Neither Perception nor Non-Perception, Consciousness without Surface, Great Consciousness";
+const EIGHTEEN_REALMS_OF_PHENOMENA = "Six Sense Organs, Six Sense Objects, Six Consciousnesses";
 
 export default {
   TWO_TRUTHS,
@@ -25,5 +26,6 @@ export default {
   TEN_PARAMITAS,
   ELEVEN_WAYS_OF_TRANSFORMING_BODHISATTVA,
   TWELVE_LINKS_OF_DEPENDENT_ORIGINATION,
-  THIRTEEN_REALMS
+  THIRTEEN_REALMS,
+  EIGHTEEN_REALMS_OF_PHENOMENA,
 }

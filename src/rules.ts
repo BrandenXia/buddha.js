@@ -18,6 +18,7 @@ const rules: [RegExp, string | string[]][] = [
   [/\b(11|eleven)\b/i, buddhism.ELEVEN_WAYS_OF_TRANSFORMING_BODHISATTVA],
   [/\b(12|twelve)\b/i, buddhism.TWELVE_LINKS_OF_DEPENDENT_ORIGINATION],
   [/\b(13|thirteen)\b/i, buddhism.THIRTEEN_REALMS],
+  [/\b(18|eighteen)\b/i, buddhism.EIGHTEEN_REALMS_OF_PHENOMENA],
   [/\b(buddha|buddhism)\b/i, Object.values(buddhism)],
   [/\b(Gowri|Meda|concept|Peano)\b/i, math.PEANO_AXIOMS],
   [/\b(Jesse|Chara|640550361853198348)\b/i, oes.JESSE],
