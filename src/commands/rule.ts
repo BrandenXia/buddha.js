@@ -40,7 +40,7 @@ const handleRule: CmdHandler = async (msg, args) => {
       await msg.reply("Rule deleted!");
       break;
     case "search": {
-      const similar = { [Op.iLike]: `%${args[1]}%` };
+      const similar = { [Op.like]: `%${args[1]}%` };
       let page = args.length > 2 ? parseInt(args[2]) : 1;
       const rules = await Rules.findAll({
         where: {
