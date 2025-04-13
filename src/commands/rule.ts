@@ -33,6 +33,7 @@ const handleRule: CmdHandler = async (msg, args) => {
       await Rules.destroy({
         where: { id: parseInt(args[1]) },
       });
+      await msg.reply("Rule deleted!");
       break;
   }
 };
