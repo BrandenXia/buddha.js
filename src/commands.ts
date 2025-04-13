@@ -3,6 +3,7 @@ import logger from "./logger.ts";
 import lottery from "./commands/lottery.ts";
 import crypto from "./commands/crypto.ts";
 import fortune from "./commands/fortune.ts";
+import rule from "./commands/rule.ts";
 
 type CmdHandler = (msg: Message, args: string[]) => Promise<void>;
 
@@ -13,6 +14,7 @@ const commands: {
   ...lottery,
   ...crypto,
   ...fortune,
+  ...rule,
 };
 
 const handleCommands = async (msg: Message): Promise<boolean> => {

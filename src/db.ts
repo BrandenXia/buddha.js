@@ -8,7 +8,6 @@ const sequelize = new Sequelize({
 });
 
 class LotteryLeaderboard extends Model {}
-
 LotteryLeaderboard.init(
   {
     guildId: { type: DataTypes.STRING, allowNull: false },
@@ -20,5 +19,15 @@ LotteryLeaderboard.init(
   { sequelize, modelName: "lottery_leaderboard" },
 );
 
+class Rules extends Model {}
+Rules.init(
+  {
+    id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
+    regex: { type: DataTypes.STRING, allowNull: false },
+    reaction: { type: DataTypes.STRING, allowNull: false },
+  },
+  { sequelize, modelName: "rules" },
+);
+
 export default sequelize;
-export { LotteryLeaderboard };
+export { LotteryLeaderboard, Rules };
