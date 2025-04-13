@@ -41,7 +41,7 @@ const handleRule: CmdHandler = async (msg, args) => {
       break;
     case "search": {
       const similar = { [Op.iLike]: `%${args[1]}%` };
-      let page = args.length > 1 ? parseInt(args[2]) : 1;
+      let page = args.length > 2 ? parseInt(args[2]) : 1;
       const rules = await Rules.findAll({
         where: {
           [Op.or]: [{ regex: similar }, { reaction: similar }],
