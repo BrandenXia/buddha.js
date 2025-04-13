@@ -1,3 +1,3 @@
 # buddha.js
 
-The Ultimate Buddha discord bot.
+The ultimate Buddha discord bot.
