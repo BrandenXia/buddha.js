@@ -7,7 +7,11 @@ const handleRules = async (msg: Message) => {
     RegExp(rule.get("regex") as string, "i").test(msg.content),
   );
   const reaction = matches[Math.floor(Math.random() * matches.length)];
-  await msg.reply(reaction.get("reaction") as string);
+  const reactionStr = (reaction.get("reaction") as string).replaceAll(
+    "{msg_username}",
+    msg.author.username,
+  );
+  await msg.reply(reactionStr);
 };
 
 export default handleRules;
