@@ -19,7 +19,7 @@ const buildRulesList = async (rules: Rules[]) =>
 const handleRule: CmdHandler = async (msg, args) => {
   switch (args[0]) {
     case "add":
-      await Rules.create({ regex: args[1], reaction: args[2] });
+      await Rules.create({ regex: args[1], reaction: args.slice(2).join(" ") });
       await msg.reply("Rule added!");
       break;
     case "list": {
