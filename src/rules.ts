@@ -9,7 +9,7 @@ const handleRules = async (msg: Message) => {
   const reaction = matches[Math.floor(Math.random() * matches.length)];
   const reactionStr = (reaction.get("reaction") as string).replaceAll(
     "{msg_username}",
-    msg.author.username,
+    msg.author.displayName,
   );
   await msg.reply(reactionStr);
 };
