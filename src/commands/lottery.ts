@@ -1,38 +1,44 @@
 import logger from "../logger.ts";
 import { LotteryLeaderboard } from "../db.ts";
-import type { Message } from "discord.js";
-import type { CmdHandler } from "../commands.ts";
 import { getDateStr } from "../utils.ts";
+import {
+  SlashCommandBuilder,
+  type ChatInputCommandInteraction,
+} from "discord.js";
+import type { CmdHandler } from "../commands.ts";
 
-const handleLottery: CmdHandler = async (msg) => {
-  const num = Math.floor(Math.random() * 1000); // 1/1000 chance of winning
-  const win = num === 0;
+const handleLottery: CmdHandler = [
+  new SlashCommandBuilder().setName("lottery").setDescription("Lottery!"),
+  async (interaction) => {
+    const num = Math.floor(Math.random() * 1000); // 1/1000 chance of winning
+    const win = num === 0;
 
-  if (win)
-    (await msg.reply("Congratulations! You won the lottery!")) &&
-      logger.info("Lottery winner!");
-  else await msg.reply("Better luck next time!");
+    if (win)
+      (await interaction.reply("Congratulations! You won the lottery!")) &&
+        logger.info("Lottery winner!");
+    else await interaction.reply("Better luck next time!");
 
-  const [leaderboard] = await LotteryLeaderboard.findOrCreate({
-    where: { userId: msg.author.id, guildId: msg.guild?.id },
-    defaults: { tried: 0, won: 0, lastMessageAt: null },
-  });
+    const [leaderboard] = await LotteryLeaderboard.findOrCreate({
+      where: { userId: interaction.user.id, guildId: interaction.guild?.id },
+      defaults: { tried: 0, won: 0, lastMessageAt: null },
+    });
 
-  await leaderboard.increment({
-    tried: 1,
-    won: win ? 1 : 0,
-  });
-  await leaderboard.update({ lastMessageAt: new Date() });
-};
+    await leaderboard.increment({
+      tried: 1,
+      won: win ? 1 : 0,
+    });
+    await leaderboard.update({ lastMessageAt: new Date() });
+  },
+];
 
 const buildLeaderboardEntry = async (
-  msg: Message,
+  interaction: ChatInputCommandInteraction,
   entry: LotteryLeaderboard,
   i: number,
 ) => {
   const username = (
-    msg.guild?.members.cache.get(entry.get("userId") as string) ??
-    (await msg.guild?.members.fetch(entry.get("userId") as string))
+    interaction.guild?.members.cache.get(entry.get("userId") as string) ??
+    (await interaction.guild?.members.fetch(entry.get("userId") as string))
   )?.user.tag;
   const won = entry.get("won") as number;
   const tried = entry.get("tried") as number;
@@ -43,24 +49,31 @@ const buildLeaderboardEntry = async (
   return `${i + 1}. ${username} - ${won} wins / ${tried} tries (${winRate}%) - Last try at: ${dateStr}`;
 };
 
-const handleLeaderboard: CmdHandler = async (msg) => {
-  const leaderboard = await LotteryLeaderboard.findAll({
-    where: { guildId: msg.guild?.id },
-    order: [["won", "DESC"]],
-    limit: 10,
-  });
+const handleLeaderboard: CmdHandler = [
+  new SlashCommandBuilder()
+    .setName("leaderboard")
+    .setDescription("Lottery leaderboard!"),
+  async (interaction) => {
+    const leaderboard = await LotteryLeaderboard.findAll({
+      where: { guildId: interaction.guild?.id },
+      order: [["won", "DESC"]],
+      limit: 10,
+    });
 
-  const leaderboardStr =
-    leaderboard.length > 0
-      ? (
-          await Promise.all(
-            leaderboard.map((entry, i) => buildLeaderboardEntry(msg, entry, i)),
-          )
-        ).join("\n")
-      : "No entries yet!";
+    const leaderboardStr =
+      leaderboard.length > 0
+        ? (
+            await Promise.all(
+              leaderboard.map((entry, i) =>
+                buildLeaderboardEntry(interaction, entry, i),
+              ),
+            )
+          ).join("\n")
+        : "No entries yet!";
 
-  await msg.reply(leaderboardStr);
-};
+    await interaction.reply(leaderboardStr);
+  },
+];
 
 export default {
   lottery: handleLottery,

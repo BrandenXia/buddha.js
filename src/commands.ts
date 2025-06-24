@@ -1,37 +1,48 @@
-import type { Message } from "discord.js";
+import { REST, Routes } from "discord.js";
 import logger from "./logger.ts";
 import lottery from "./commands/lottery.ts";
 import crypto from "./commands/crypto.ts";
 import fortune from "./commands/fortune.ts";
 import rule from "./commands/rule.ts";
+import { TOKEN, CLIENT_ID } from "./env.ts";
+import type {
+  SharedSlashCommand,
+  ChatInputCommandInteraction,
+} from "discord.js";
 
-type CmdHandler = (msg: Message, args: string[]) => Promise<void>;
+type CmdHandler = [
+  SharedSlashCommand,
+  (interaction: ChatInputCommandInteraction) => Promise<void>,
+];
 
 const commands: {
-  [key: string]: string | CmdHandler;
+  [key: string]: CmdHandler;
 } = {
-  ping: "pong",
   ...lottery,
   ...crypto,
   ...fortune,
   ...rule,
 };
 
-const handleCommands = async (msg: Message): Promise<boolean> => {
-  if (!msg.content.startsWith("!")) return false;
-
-  const [cmd, ...args] = msg.content.slice(1).split(" ");
-  logger.debug(`Received command: ${cmd}`);
-
-  if (Object.keys(commands).includes(cmd)) {
-    const reaction = commands[cmd];
-
-    if (typeof reaction === "string") await msg.reply(reaction);
-    else await (reaction as CmdHandler)(msg, args);
+const handleCommands = async (interaction: ChatInputCommandInteraction) => {
+  if (!Object.keys(commands).includes(interaction.commandName)) {
+    logger.debug(`Unknown command: ${interaction.commandName}`);
+    return;
   }
 
-  return true;
+  const reaction = commands[interaction.commandName];
+  await reaction[1](interaction);
 };
 
-export default handleCommands;
+const registerCommands = async () => {
+  const rest = new REST().setToken(TOKEN);
+
+  await rest.put(Routes.applicationCommands(CLIENT_ID), {
+    body: Object.values(commands).map((h) => h[0].toJSON()),
+  });
+
+  logger.info("Commands successfully registered.");
+};
+
+export { handleCommands, registerCommands };
 export type { CmdHandler };
