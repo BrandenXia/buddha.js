@@ -1,7 +1,9 @@
-import { Rules } from "../db.ts";
-import type { CmdHandler } from "../commands.ts";
-import { Op } from "sequelize";
 import { SlashCommandBuilder } from "discord.js";
+import { Op } from "sequelize";
+
+import { Rules } from "@/db";
+
+import type { CmdHandler } from "@/commands";
 
 const buildRuleEntry = async (rule: Rules) => {
   const id = (await rule.get("id")) as number;
@@ -12,9 +14,7 @@ const buildRuleEntry = async (rule: Rules) => {
 
 const buildRulesList = async (rules: Rules[]) =>
   rules.length > 0
-    ? (await Promise.all(rules.map((entry) => buildRuleEntry(entry)))).join(
-        "\n",
-      )
+    ? (await Promise.all(rules.map((entry) => buildRuleEntry(entry)))).join("\n")
     : "No rules yet!";
 
 const handleRule: CmdHandler = [
@@ -26,10 +26,7 @@ const handleRule: CmdHandler = [
         .setName("add")
         .setDescription("Add a new rule")
         .addStringOption((opt) =>
-          opt
-            .setName("regex")
-            .setDescription("Regex to match the rule with")
-            .setRequired(true),
+          opt.setName("regex").setDescription("Regex to match the rule with").setRequired(true),
         )
         .addStringOption((opt) =>
           opt
@@ -51,10 +48,7 @@ const handleRule: CmdHandler = [
         .setName("delete")
         .setDescription("Delete specific rule")
         .addIntegerOption((opt) =>
-          opt
-            .setName("id")
-            .setDescription("ID of the rule to delete")
-            .setRequired(true),
+          opt.setName("id").setDescription("ID of the rule to delete").setRequired(true),
         ),
     )
     .addSubcommand((subcmd) =>
@@ -62,10 +56,7 @@ const handleRule: CmdHandler = [
         .setName("search")
         .setDescription("Search rules")
         .addStringOption((opt) =>
-          opt
-            .setName("query")
-            .setDescription("Term to search for")
-            .setRequired(true),
+          opt.setName("query").setDescription("Term to search for").setRequired(true),
         )
         .addIntegerOption((opt) =>
           opt.setName("page").setDescription("Page number when listing rules"),

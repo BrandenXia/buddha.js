@@ -1,5 +1,6 @@
-import { CRYPTO_KEY } from "./env.ts";
 import crypto from "crypto";
+
+import { CRYPTO_KEY } from "@/env";
 
 const DICT: {
   [key: string]: string;
@@ -76,15 +77,13 @@ const encrypt = (text: string): string => {
   key.update(text, "utf8", "hex");
   let res = key.final("hex");
 
-  for (const [k, v] of Object.entries(DICT))
-    res = res.replaceAll(k, v);
+  for (const [k, v] of Object.entries(DICT)) res = res.replaceAll(k, v);
 
   return res;
 };
 
 const decrypt = (text: string): string => {
-  for (const [k, v] of Object.entries(DICT))
-    text = text.replaceAll(v, k);
+  for (const [k, v] of Object.entries(DICT)) text = text.replaceAll(v, k);
 
   const key = crypto.createDecipher("aes-128-cbc", CRYPTO_KEY);
   key.update(text, "hex", "utf8");

@@ -1,6 +1,8 @@
-import { decrypt, encrypt } from "../crypto.ts";
-import type { CmdHandler } from "../commands.ts";
 import { SlashCommandBuilder } from "discord.js";
+
+import { decrypt, encrypt } from "@/crypto";
+
+import type { CmdHandler } from "@/commands";
 
 const handleEncrypt: CmdHandler = [
   new SlashCommandBuilder()

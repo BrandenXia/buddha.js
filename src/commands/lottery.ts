@@ -1,11 +1,11 @@
-import logger from "../logger.ts";
-import { LotteryLeaderboard } from "../db.ts";
-import { getDateStr } from "../utils.ts";
-import {
-  SlashCommandBuilder,
-  type ChatInputCommandInteraction,
-} from "discord.js";
-import type { CmdHandler } from "../commands.ts";
+import { SlashCommandBuilder } from "discord.js";
+
+import { LotteryLeaderboard } from "@/db";
+import logger from "@/logger";
+import { getDateStr } from "@/utils";
+
+import type { CmdHandler } from "@/commands";
+import type { ChatInputCommandInteraction } from "discord.js";
 
 const handleLottery: CmdHandler = [
   new SlashCommandBuilder().setName("lottery").setDescription("Lottery!"),
@@ -50,9 +50,7 @@ const buildLeaderboardEntry = async (
 };
 
 const handleLeaderboard: CmdHandler = [
-  new SlashCommandBuilder()
-    .setName("leaderboard")
-    .setDescription("Lottery leaderboard!"),
+  new SlashCommandBuilder().setName("leaderboard").setDescription("Lottery leaderboard!"),
   async (interaction) => {
     const leaderboard = await LotteryLeaderboard.findAll({
       where: { guildId: interaction.guild?.id },
@@ -64,9 +62,7 @@ const handleLeaderboard: CmdHandler = [
       leaderboard.length > 0
         ? (
             await Promise.all(
-              leaderboard.map((entry, i) =>
-                buildLeaderboardEntry(interaction, entry, i),
-              ),
+              leaderboard.map((entry, i) => buildLeaderboardEntry(interaction, entry, i)),
             )
           ).join("\n")
         : "No entries yet!";

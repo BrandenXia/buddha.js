@@ -1,5 +1,6 @@
+import { Rules } from "@/db.ts";
+
 import type { Message } from "discord.js";
-import { Rules } from "./db.ts";
 
 const handleRules = async (msg: Message) => {
   const rules = await Rules.findAll();

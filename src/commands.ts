@@ -1,19 +1,15 @@
 import { REST, Routes } from "discord.js";
-import logger from "./logger.ts";
-import lottery from "./commands/lottery.ts";
-import crypto from "./commands/crypto.ts";
-import fortune from "./commands/fortune.ts";
-import rule from "./commands/rule.ts";
-import { TOKEN, CLIENT_ID } from "./env.ts";
-import type {
-  SharedSlashCommand,
-  ChatInputCommandInteraction,
-} from "discord.js";
 
-type CmdHandler = [
-  SharedSlashCommand,
-  (interaction: ChatInputCommandInteraction) => Promise<void>,
-];
+import crypto from "@/commands/crypto";
+import fortune from "@/commands/fortune";
+import lottery from "@/commands/lottery";
+import rule from "@/commands/rule";
+import { CLIENT_ID, TOKEN } from "@/env";
+import logger from "@/logger";
+
+import type { ChatInputCommandInteraction, SharedSlashCommand } from "discord.js";
+
+type CmdHandler = [SharedSlashCommand, (interaction: ChatInputCommandInteraction) => Promise<void>];
 
 const commands: {
   [key: string]: CmdHandler;
@@ -30,9 +26,7 @@ const handleCommands = async (interaction: ChatInputCommandInteraction) => {
     return;
   }
 
-  logger.debug(
-    `Received command: ${interaction.commandName} from ${interaction.user.tag}`,
-  );
+  logger.debug(`Received command: ${interaction.commandName} from ${interaction.user.tag}`);
 
   const reaction = commands[interaction.commandName];
   await reaction[1](interaction);

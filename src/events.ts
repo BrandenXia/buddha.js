@@ -1,9 +1,11 @@
-import client from "./client.ts";
-import handleRules from "./rules.ts";
-import logger from "./logger.ts";
-import sequelize from "./db.ts";
-import { handleCommands, registerCommands } from "./commands.ts";
 import { Events } from "discord.js";
+
+import client from "@/client";
+import { handleCommands, registerCommands } from "@/commands";
+import sequelize from "@/db";
+import logger from "@/logger";
+import handleRules from "@/rules";
+
 import type { ClientEvents } from "discord.js";
 
 export default {

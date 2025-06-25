@@ -1,5 +1,6 @@
 import { DataTypes, Model, Sequelize } from "sequelize";
-import logger from "./logger.ts";
+
+import logger from "@/logger";
 
 const sequelize = new Sequelize({
   dialect: "sqlite",
