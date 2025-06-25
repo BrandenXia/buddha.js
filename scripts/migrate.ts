@@ -1,4 +1,4 @@
-import { Rules } from "../db";
+import { Rules } from "../src/db";
 
 const rules: [RegExp, string | string[]][] = [];
 
