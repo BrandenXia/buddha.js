@@ -26,9 +26,13 @@ const commands: {
 
 const handleCommands = async (interaction: ChatInputCommandInteraction) => {
   if (!Object.keys(commands).includes(interaction.commandName)) {
-    logger.debug(`Unknown command: ${interaction.commandName}`);
+    logger.error(`Unknown command: ${interaction.commandName}`);
     return;
   }
+
+  logger.debug(
+    `Received command: ${interaction.commandName} from ${interaction.user.tag}`,
+  );
 
   const reaction = commands[interaction.commandName];
   await reaction[1](interaction);

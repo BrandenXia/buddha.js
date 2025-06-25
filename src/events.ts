@@ -4,7 +4,7 @@ import logger from "./logger.ts";
 import sequelize from "./db.ts";
 import { handleCommands, registerCommands } from "./commands.ts";
 import { Events } from "discord.js";
-import type { ClientEvents, Interaction } from "discord.js";
+import type { ClientEvents } from "discord.js";
 
 export default {
   [Events.ClientReady]: async () => {
@@ -20,7 +20,7 @@ export default {
 
     await handleRules(msg);
   },
-  [Events.InteractionCreate]: async (interaction: Interaction) =>
+  [Events.InteractionCreate]: async (interaction) =>
     interaction.isChatInputCommand() && (await handleCommands(interaction)),
   [Events.Error]: logger.error.bind(logger),
 } satisfies {
