@@ -4,7 +4,7 @@ import { DataTypes, Model, Op, Sequelize } from "sequelize";
 import client from "@/client";
 import { TOKEN } from "@/env";
 
-const ACTIONS = ["fetchLast", "fetchPrev"];
+const ACTIONS = ["fetchNew", "fetchPrev"];
 const action = process.argv[2];
 if (!ACTIONS.includes(action)) throw new Error(`Action must be one of: ${ACTIONS.join(", ")}`);
 
@@ -67,7 +67,7 @@ if ((await Message.count({ where: { chanId: { [Op.eq]: chanID } } })) == 0) {
 }
 
 switch (action) {
-  case "fetchLast":
+  case "fetchNew":
     while (true) {
       const latestMsg = await Message.findOne({
         where: { chanId: { [Op.eq]: chanID } },
