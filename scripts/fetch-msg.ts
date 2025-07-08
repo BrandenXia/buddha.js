@@ -1,8 +1,9 @@
-import { Message as DiscordMsg } from "discord.js";
 import { DataTypes, Model, Op, Sequelize } from "sequelize";
 
 import client from "@/client";
 import { TOKEN } from "@/env";
+
+import type { Collection, Message as DiscordMsg } from "discord.js";
 
 const ACTIONS = ["fetchNew", "fetchPrev"];
 const action = process.argv[2];
@@ -49,7 +50,7 @@ const msgFilter = (msg: DiscordMsg) => !msg.author.bot && !msg.system && msg.con
 await client.login(TOKEN);
 
 console.log("Logged in as", client.user?.tag);
-console.log("Fetching messages...");
+console.log("Fetching channel", chanID);
 
 const chan = await client.channels.fetch(chanID);
 
@@ -66,41 +67,32 @@ if ((await Message.count({ where: { chanId: { [Op.eq]: chanID } } })) == 0) {
   Message.create(mapMsg(lastMsg));
 }
 
-switch (action) {
-  case "fetchNew":
-    while (true) {
-      const latestMsg = await Message.findOne({
-        where: { chanId: { [Op.eq]: chanID } },
-        order: [["createdAt", "DESC"]],
-      });
-      if (!latestMsg) throw new Error("No messages found in the database");
+console.log("Fetching messages...");
 
-      const msgs = await chan.messages.fetch({
-        limit: 100,
-        after: latestMsg.get("id") as string,
-      });
+const isFetchNew = action == "fetchNew";
+while (true) {
+  let msgs: Collection<string, DiscordMsg<boolean>>;
+  let filteredMsgs: typeof msgs;
 
-      if (msgs.size == 0) break;
-      await Message.bulkCreate(msgs.filter(msgFilter).map(mapMsg));
-    }
-    break;
-  case "fetchPrev":
-    while (true) {
-      const earliestMsg = await Message.findOne({
-        where: { chanId: { [Op.eq]: chanID } },
-        order: [["createdAt", "ASC"]],
-      });
-      if (!earliestMsg) throw new Error("No messages found in the database");
+  const msg = await Message.findOne({
+    where: { chanId: { [Op.eq]: chanID } },
+    order: [["createdAt", isFetchNew ? "DESC" : "ASC"]],
+  });
+  if (!msg) throw new Error("No messages found in the database");
 
-      const msgs = await chan.messages.fetch({
-        limit: 100,
-        before: earliestMsg.get("id") as string,
-      });
+  console.log("Reference message ID:", msg.get("id"));
 
-      if (msgs.size == 0) break;
-      await Message.bulkCreate(msgs.filter(msgFilter).map(mapMsg));
-    }
-    break;
+  msgs = await chan.messages.fetch({
+    limit: 100,
+    [isFetchNew ? "after" : "before"]: msg.get("id") as string,
+  });
+
+  filteredMsgs = msgs.filter(msgFilter);
+  console.log("Fetched", filteredMsgs.size, "messages");
+
+  if (filteredMsgs.size == 0) break;
+  await Message.bulkCreate(filteredMsgs.map(mapMsg));
 }
 
 console.log("Done fetching messages");
+await client.destroy();
