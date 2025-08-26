@@ -4,6 +4,7 @@ import crypto from "@/commands/crypto";
 import fortune from "@/commands/fortune";
 import lottery from "@/commands/lottery";
 import rule from "@/commands/rule";
+import talk from "@/commands/talk";
 import { CLIENT_ID, TOKEN } from "@/env";
 import logger from "@/logger";
 
@@ -18,6 +19,7 @@ const commands: {
   ...crypto,
   ...fortune,
   ...rule,
+  ...talk,
 };
 
 const handleCommands = async (interaction: ChatInputCommandInteraction) => {
