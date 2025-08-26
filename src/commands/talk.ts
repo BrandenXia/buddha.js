@@ -5,8 +5,10 @@ import type { CmdHandler } from "@/commands";
 const handleTalk: CmdHandler = [
   new SlashCommandBuilder().setName("talk").setDescription("Talk to the bot!"),
   async (interaction) => {
-    const { stdout } = Bun.spawnSync({ cmd: ["python3", "./data/load_model.py"] });
-    await interaction.reply(stdout.toString());
+    const proc = Bun.spawn({ cmd: ["python3", "./data/load_model.py"] });
+    await proc.exited;
+    const output = await new Response(proc.stdout).text();
+    await interaction.reply(output);
   },
 ];
 
