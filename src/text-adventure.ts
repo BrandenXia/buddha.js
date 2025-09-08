@@ -51,6 +51,9 @@ const handleTextAdventure = async (thread: AnyThreadChannel) => {
         errors: ["time"],
       });
       const reply = userReply.first()!.content;
+
+      if (reply.toLowerCase() === "end") return;
+
       messages.push({ role: "user", content: reply });
     } catch {
       thread.send("No reaction received in 24 hours. Ending the game.");
