@@ -4,6 +4,7 @@ import OpenAI from "openai";
 import logger from "@/logger";
 
 import type { AnyThreadChannel } from "discord.js";
+import type { ChatCompletionMessageParam } from "openai/resources";
 
 const TEXT_ADVENTURE_CHANNEL_ID = process.env.TEXT_ADVENTURE_CHANNEL_ID!;
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY!;
@@ -35,7 +36,7 @@ const handleTextAdventure = async (thread: AnyThreadChannel) => {
 
   logger.info(`Starting text adventure in thread ${thread.id}`);
 
-  let messages = [
+  let messages: ChatCompletionMessageParam[] = [
     { role: "developer" as const, content: systemPrompt },
     { role: "user" as const, content: startingMessage.content },
   ];
@@ -47,9 +48,9 @@ const handleTextAdventure = async (thread: AnyThreadChannel) => {
       temperature: 0.7,
       messages,
     });
-    const msg = await thread.send(
-      aiResponse.choices[0].message.content ?? "Error occurred when generating response.",
-    );
+    const aiMessage = aiResponse.choices[0].message.content;
+    const msg = await thread.send(aiMessage ?? "Error occurred when generating response.");
+    messages.push({ role: "assistant", content: aiMessage ?? "" });
     await Promise.all(EMOJIS.map(msg.react.bind(msg)));
 
     try {
