@@ -10,19 +10,9 @@ const TEXT_ADVENTURE_CHANNEL_ID = process.env.TEXT_ADVENTURE_CHANNEL_ID!;
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY!;
 
 const systemPrompt =
-  "Create a text adventure game based on the user-provided text. You are the computer and I am the player. Each round I will have 3 choices: A, B, and C.";
+  "Create a text adventure game based on the user-provided text. You are the computer and I am the player.";
 
 const aiClient = new OpenAI({ apiKey: OPENAI_API_KEY });
-
-const EMOJI_A = "🇦";
-const EMOJI_B = "🇧";
-const EMOJI_C = "🇨";
-const EMOJIS_MAP = new Map([
-  [EMOJI_A, "A"],
-  [EMOJI_B, "B"],
-  [EMOJI_C, "C"],
-]);
-const EMOJIS = [EMOJI_A, EMOJI_B, EMOJI_C];
 
 const handleTextAdventure = async (thread: AnyThreadChannel) => {
   if (thread.parent?.type != ChannelType.GuildForum) return;
@@ -31,8 +21,6 @@ const handleTextAdventure = async (thread: AnyThreadChannel) => {
   const startingMessage = await thread.fetchStarterMessage();
 
   if (!startingMessage) return;
-
-  await startingMessage.react("👍");
 
   logger.info(`Starting text adventure in thread ${thread.id}`);
 
@@ -49,19 +37,18 @@ const handleTextAdventure = async (thread: AnyThreadChannel) => {
       messages,
     });
     const aiMessage = aiResponse.choices[0].message.content;
-    const msg = await thread.send(aiMessage ?? "Error occurred when generating response.");
+    await thread.send(aiMessage ?? "Error occurred when generating response.");
     messages.push({ role: "assistant", content: aiMessage ?? "" });
-    await Promise.all(EMOJIS.map(msg.react.bind(msg)));
 
     try {
-      const reactions = await msg.awaitReactions({
+      const userReply = await thread.awaitMessages({
         max: 1,
-        filter: (reaction, user) => EMOJIS.includes(reaction.emoji.name!) && !user.bot,
+        filter: (m) => !m.author.bot,
         time: 24 * 60 * 60 * 1000, // 24 hours
         errors: ["time"],
       });
-      const choice = reactions.find((value) => EMOJIS.includes(value.emoji.name!));
-      messages.push({ role: "user", content: EMOJIS_MAP.get(choice!.emoji.name!)! });
+      const reply = userReply.first()!.content;
+      messages.push({ role: "user", content: reply });
     } catch {
       thread.send("No reaction received in 24 hours. Ending the game.");
       logger.info(`Ending text adventure in thread ${thread.id} due to timeout.`);
