@@ -53,16 +53,13 @@ const handleTextAdventure = async (thread: AnyThreadChannel) => {
     await Promise.all(EMOJIS.map(msg.react.bind(msg)));
 
     try {
-      console.log(1);
       const reactions = await msg.awaitReactions({
         max: 1,
         filter: (reaction, user) => EMOJIS.includes(reaction.emoji.name!) && !user.bot,
         time: 24 * 60 * 60 * 1000, // 24 hours
         errors: ["time"],
       });
-      console.log(2);
       const choice = reactions.find((value) => EMOJIS.includes(value.emoji.name!));
-      console.log(3);
       messages.push({ role: "user", content: EMOJIS_MAP.get(choice!.emoji.name!)! });
     } catch {
       thread.send("No reaction received in 24 hours. Ending the game.");
