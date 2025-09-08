@@ -17,6 +17,7 @@
   "dependencies": {
     "bufferutil": "^4.0.9",
     "discord.js": "^14.20.0",
+    "openai": "^5.19.1",
     "pino": "^9.7.0",
     "sequelize": "^6.37.7",
     "sqlite3": "^5.1.7",

@@ -5,6 +5,7 @@ import { handleCommands, registerCommands } from "@/commands";
 import sequelize from "@/db";
 import logger from "@/logger";
 import handleRules from "@/rules";
+import handleTextAdventure from "@/text-adventure";
 
 import type { ClientEvents } from "discord.js";
 
@@ -24,6 +25,9 @@ export default {
   },
   [Events.InteractionCreate]: async (interaction) =>
     interaction.isChatInputCommand() && (await handleCommands(interaction)),
+  [Events.ThreadCreate]: async (thread, newlyCreated) => {
+    if (newlyCreated) handleTextAdventure(thread);
+  },
   [Events.Error]: logger.error.bind(logger),
 } satisfies {
   [E in keyof ClientEvents]?: (...args: ClientEvents[E]) => void;
