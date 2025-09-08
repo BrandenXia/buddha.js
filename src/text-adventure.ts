@@ -36,7 +36,10 @@ const handleTextAdventure = async (thread: AnyThreadChannel) => {
       temperature: 0.7,
       messages,
     });
-    const aiMessage = aiResponse.choices[0].message.content;
+    const aiMessage = aiResponse.choices.find((choice) => {
+      const msg = choice.message.content;
+      return msg && msg.trim().length > 0 && msg.trim().length < 2000;
+    })?.message.content;
     await thread.send(aiMessage ?? "Error occurred when generating response.");
     messages.push({ role: "assistant", content: aiMessage ?? "" });
 
