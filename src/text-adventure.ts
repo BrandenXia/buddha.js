@@ -43,7 +43,8 @@ const handleTextAdventure = async (thread: AnyThreadChannel) => {
   while (messages.length < 10000) {
     await thread.sendTyping();
     const aiResponse = await aiClient.chat.completions.create({
-      model: "gpt-3.5-turbo",
+      model: "gpt-4o-mini",
+      temperature: 0.7,
       messages,
     });
     const msg = await thread.send(
