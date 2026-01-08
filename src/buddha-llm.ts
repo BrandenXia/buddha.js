@@ -8,7 +8,7 @@ import {
 } from "discord.js";
 import OpenAI from "openai";
 
-import { replaceEmojis } from "@/utils";
+import { formatEmojis, replaceEmojis } from "@/utils";
 
 import type { Message, User } from "discord.js";
 
@@ -31,8 +31,13 @@ const createResponse = async (msg: string, num: number) => {
 };
 
 const formatResponse = (response: string, user: User) => {
-  response = replaceEmojis(response);
+  response = formatEmojis(response);
   return response.replaceAll("@user", `<@${user.id}>`);
+};
+
+const preprocessInput = (input: string, mention: boolean) => {
+  if (mention) input = input.replace(/<@!?(\d{18,})>/g, "").trim();
+  return replaceEmojis(input);
 };
 
 const DATASET_FILE = "data/dpo_dataset.jsonl";
@@ -66,7 +71,7 @@ ${resB}
 
 const handleChatMessage = async (msg: Message, mention = false) => {
   if (msg.channel.type == ChannelType.GroupDM) return;
-  const content = mention ? msg.content.replace(/<@!?(\d{18,})>/g, "").trim() : msg.content;
+  const content = preprocessInput(msg.content, mention);
 
   const responses = await createResponse(content, 2);
   const res = buildResponse(responses[0], responses[1]);

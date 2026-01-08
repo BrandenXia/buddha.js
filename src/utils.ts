@@ -27,7 +27,10 @@ const emojis = readFileSync(EMOJIS_FILE, "utf-8")
   .map(([orignal, formatted]) => [formatted, orignal] as [string, string]);
 const emojiMap = new Map<string, string>(emojis);
 const formattedEmojiRegex = /(:[a-zA-Z0-9_+-]+:)/g;
-const replaceEmojis = (text: string) =>
+const formatEmojis = (text: string) =>
   text.replace(formattedEmojiRegex, (match) => emojiMap.get(match) ?? match);
 
-export { getDateStr, hash, replaceEmojis };
+const originalEmojiRegex = /<a?(:[a-zA-Z0-9_+-]+:)\d{18,}>/g;
+const replaceEmojis = (text: string) => text.replace(originalEmojiRegex, (_, p1) => p1);
+
+export { getDateStr, hash, formatEmojis, replaceEmojis };
