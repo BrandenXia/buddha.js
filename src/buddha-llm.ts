@@ -15,7 +15,7 @@ import type { Message, User } from "discord.js";
 const BUDDHA_BASE_URL = process.env.BUDDHA_BASE_URL!;
 
 const MAX_TOKENS = 256;
-const TEMPERATURE = 0.7;
+const TEMPERATURE = 0.8;
 
 const client = new OpenAI({ baseURL: BUDDHA_BASE_URL, apiKey: "sk-no-key-required" });
 
@@ -74,6 +74,11 @@ const handleChatMessage = async (msg: Message, mention = false) => {
   const content = preprocessInput(msg.content, mention);
 
   const responses = await createResponse(content, 2);
+  if (responses.some((res) => res.length > 4000)) {
+    await msg.reply("One of the generated responses is too long to display.");
+    return;
+  }
+
   const res = buildResponse(responses[0], responses[1]);
   const reply = await msg.reply(res);
 
