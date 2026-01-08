@@ -8,7 +8,7 @@ import {
 } from "discord.js";
 import OpenAI from "openai";
 
-import { formatEmojis, replaceEmojis } from "@/utils";
+import { formatEmojis, normalizeEmojis } from "@/utils";
 
 import type { Message, User } from "discord.js";
 
@@ -37,7 +37,7 @@ const formatResponse = (response: string, user: User) => {
 
 const preprocessInput = (input: string, mention: boolean) => {
   if (mention) input = input.replace(/<@!?(\d{18,})>/g, "").trim();
-  return replaceEmojis(input);
+  return normalizeEmojis(input);
 };
 
 const DATASET_FILE = "data/dpo_dataset.jsonl";

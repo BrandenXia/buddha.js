@@ -31,6 +31,6 @@ const formatEmojis = (text: string) =>
   text.replace(formattedEmojiRegex, (match) => emojiMap.get(match) ?? match);
 
 const originalEmojiRegex = /<a?(:[a-zA-Z0-9_+-]+:)\d{18,}>/g;
-const replaceEmojis = (text: string) => text.replace(originalEmojiRegex, (_, p1) => p1);
+const normalizeEmojis = (text: string) => text.replace(originalEmojiRegex, (_, p1) => p1);
 
-export { getDateStr, hash, formatEmojis, replaceEmojis };
+export { getDateStr, hash, formatEmojis, normalizeEmojis };
