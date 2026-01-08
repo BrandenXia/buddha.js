@@ -1,3 +1,5 @@
+import { readFileSync } from "fs";
+
 const getDateStr = (date: Date) =>
   date.toLocaleString("en-US", { timeZone: "America/Los_Angeles" });
 
@@ -17,4 +19,15 @@ const hash = (str: string, seed: number = 0) => {
   return 4294967296 * (2097151 & h2) + (h1 >>> 0);
 };
 
-export { getDateStr, hash };
+const EMOJIS_FILE = "data/emojis.txt";
+const emojis = readFileSync(EMOJIS_FILE, "utf-8")
+  .split("\n")
+  .filter((line) => line.trim().length > 0)
+  .map((line) => line.split(" -> "))
+  .map(([orignal, formatted]) => [formatted, orignal] as [string, string]);
+const emojiMap = new Map<string, string>(emojis);
+const formattedEmojiRegex = /(:[a-zA-Z0-9_+-]+:)/g;
+const replaceEmojis = (text: string) =>
+  text.replace(formattedEmojiRegex, (match) => emojiMap.get(match) ?? match);
+
+export { getDateStr, hash, replaceEmojis };

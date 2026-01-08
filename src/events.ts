@@ -1,5 +1,6 @@
 import { Events } from "discord.js";
 
+import handleChatMessage from "@/buddha-llm";
 import client from "@/client";
 import { handleCommands, registerCommands } from "@/commands";
 import sequelize from "@/db";
@@ -22,6 +23,13 @@ export default {
     logger.debug(`Received message: ${msg.content} from ${msg.author.tag}`);
 
     await handleRules(msg);
+
+    if (Math.random() < 0.05)
+      await handleChatMessage(msg); // random 5% chance
+    else if (msg.mentions.has(client.user!.id))
+      if (!msg.content.includes("@here") || !msg.content.includes("@everyone"))
+        // mention
+        await handleChatMessage(msg, true);
   },
   [Events.InteractionCreate]: async (interaction) =>
     interaction.isChatInputCommand() && (await handleCommands(interaction)),
