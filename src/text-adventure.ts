@@ -30,18 +30,24 @@ const handleTextAdventure = async (thread: AnyThreadChannel) => {
   ];
 
   while (messages.length < 10000) {
-    await thread.sendTyping();
-    const aiResponse = await aiClient.chat.completions.create({
-      model: "gpt-4o-mini",
-      temperature: 0.7,
-      messages,
-    });
-    const aiMessage = aiResponse.choices.find((choice) => {
-      const msg = choice.message.content;
-      return msg && msg.trim().length > 0 && msg.trim().length < 2000;
-    })?.message.content;
-    await thread.send(aiMessage ?? "Error occurred when generating response.");
-    messages.push({ role: "assistant", content: aiMessage ?? "" });
+    try {
+      await thread.sendTyping();
+      const aiResponse = await aiClient.chat.completions.create({
+        model: "gpt-4o-mini",
+        temperature: 0.7,
+        messages,
+      });
+      const aiMessage = aiResponse.choices.find((choice) => {
+        const msg = choice.message.content;
+        return msg && msg.trim().length > 0 && msg.trim().length < 2000;
+      })?.message.content;
+      await thread.send(aiMessage ?? "Error occurred when generating response.");
+      messages.push({ role: "assistant", content: aiMessage ?? "" });
+    } catch (error) {
+      logger.error({ error }, "Error generating AI response in text adventure");
+      await thread.send("I encountered an error while generating a response. Please try again.");
+      return;
+    }
 
     try {
       const userReply = await thread.awaitMessages({

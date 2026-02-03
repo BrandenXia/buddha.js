@@ -73,9 +73,11 @@ const DICT: {
 };
 
 const encrypt = (text: string): string => {
-  const key = crypto.createCipher("aes-128-cbc", CRYPTO_KEY);
-  key.update(text, "utf8", "hex");
-  let res = key.final("hex");
+  // Create a deterministic IV from the key for backward compatibility
+  const iv = crypto.createHash("md5").update(CRYPTO_KEY).digest();
+  const cipher = crypto.createCipheriv("aes-128-cbc", crypto.createHash("md5").update(CRYPTO_KEY).digest(), iv);
+  let res = cipher.update(text, "utf8", "hex");
+  res += cipher.final("hex");
 
   for (const [k, v] of Object.entries(DICT)) res = res.replaceAll(k, v);
 
@@ -85,10 +87,13 @@ const encrypt = (text: string): string => {
 const decrypt = (text: string): string => {
   for (const [k, v] of Object.entries(DICT)) text = text.replaceAll(v, k);
 
-  const key = crypto.createDecipher("aes-128-cbc", CRYPTO_KEY);
-  key.update(text, "hex", "utf8");
+  // Create a deterministic IV from the key for backward compatibility
+  const iv = crypto.createHash("md5").update(CRYPTO_KEY).digest();
+  const decipher = crypto.createDecipheriv("aes-128-cbc", crypto.createHash("md5").update(CRYPTO_KEY).digest(), iv);
+  let res = decipher.update(text, "hex", "utf8");
+  res += decipher.final("utf8");
 
-  return key.final("utf8");
+  return res;
 };
 
 export { encrypt, decrypt };

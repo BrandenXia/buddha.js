@@ -72,7 +72,7 @@ const handleRule: CmdHandler = [
         await interaction.reply("Rule added!");
         break;
       case "list": {
-        let page = interaction.options.getInteger("page") || 1;
+        const page = interaction.options.getInteger("page") || 1;
         const rules = await Rules.findAll({
           order: [["id", "ASC"]],
           limit: 10,
@@ -92,7 +92,7 @@ const handleRule: CmdHandler = [
         const similar = {
           [Op.like]: `%${interaction.options.getString("query", true)}%`,
         };
-        let page = interaction.options.getInteger("page") || 1;
+        const page = interaction.options.getInteger("page") || 1;
         const rules = await Rules.findAll({
           where: {
             [Op.or]: [{ regex: similar }, { reaction: similar }],

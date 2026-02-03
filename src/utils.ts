@@ -24,7 +24,7 @@ const emojis = readFileSync(EMOJIS_FILE, "utf-8")
   .split("\n")
   .filter((line) => line.trim().length > 0)
   .map((line) => line.split(" -> "))
-  .map(([orignal, formatted]) => [formatted, orignal] as [string, string]);
+  .map(([original, formatted]) => [formatted, original] as [string, string]);
 const emojiMap = new Map<string, string>(emojis);
 const formattedEmojiRegex = /(:[a-zA-Z0-9_+-]+:)/g;
 const formatEmojis = (text: string) =>

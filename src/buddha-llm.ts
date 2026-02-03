@@ -13,6 +13,7 @@ import {
 import OpenAI from "openai";
 
 import { formatEmojis, normalizeEmojis } from "@/utils";
+import logger from "@/logger";
 
 import type { Message, User } from "discord.js";
 
@@ -141,7 +142,9 @@ const handleChatMessage = async (msg: Message, mention = false) => {
         await recordChoice(content, customResponse, responses[Math.random() < 0.5 ? 1 : 0]);
         break;
     }
-  } catch {}
+  } catch (error) {
+    logger.error({ error }, "Error handling chat message interaction");
+  }
 };
 
 export { createResponse };
