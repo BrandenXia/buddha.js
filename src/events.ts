@@ -29,7 +29,7 @@ export default {
     if (Math.random() < 0.05)
       await handleChatMessage(msg); // random 5% chance
     else if (msg.mentions.has(client.user!.id)) {
-      if (!msg.content.includes("@here") || !msg.content.includes("@everyone"))
+      if (!msg.content.includes("@here") && !msg.content.includes("@everyone"))
         // mention
         await handleChatMessage(msg, true);
     } else if (msg.channelId === LLM_TEST_CHANNEL_ID) await handleChatMessage(msg);

@@ -72,10 +72,19 @@ const DICT: {
   "=": "漫",
 };
 
+// NOTE: Using deterministic IV for backward compatibility with existing encrypted data.
+// This reduces the security of CBC mode as it makes encryption deterministic.
+// For new implementations, consider using a random IV prepended to the ciphertext.
+const deriveKeyAndIV = () => {
+  const derived = crypto.createHash("md5").update(CRYPTO_KEY).digest();
+  return { key: derived, iv: derived };
+};
+
 const encrypt = (text: string): string => {
-  const key = crypto.createCipher("aes-128-cbc", CRYPTO_KEY);
-  key.update(text, "utf8", "hex");
-  let res = key.final("hex");
+  const { key, iv } = deriveKeyAndIV();
+  const cipher = crypto.createCipheriv("aes-128-cbc", key, iv);
+  let res = cipher.update(text, "utf8", "hex");
+  res += cipher.final("hex");
 
   for (const [k, v] of Object.entries(DICT)) res = res.replaceAll(k, v);
 
@@ -85,10 +94,12 @@ const encrypt = (text: string): string => {
 const decrypt = (text: string): string => {
   for (const [k, v] of Object.entries(DICT)) text = text.replaceAll(v, k);
 
-  const key = crypto.createDecipher("aes-128-cbc", CRYPTO_KEY);
-  key.update(text, "hex", "utf8");
+  const { key, iv } = deriveKeyAndIV();
+  const decipher = crypto.createDecipheriv("aes-128-cbc", key, iv);
+  let res = decipher.update(text, "hex", "utf8");
+  res += decipher.final("utf8");
 
-  return key.final("utf8");
+  return res;
 };
 
 export { encrypt, decrypt };
