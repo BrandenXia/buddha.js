@@ -2,6 +2,7 @@ import { Events } from "discord.js";
 
 import handleChatMessage from "@/buddha-llm";
 import client from "@/client";
+import handleCommandDeclaration from "@/command-declaration";
 import { handleCommands, registerCommands } from "@/commands";
 import sequelize from "@/db";
 import logger from "@/logger";
@@ -21,6 +22,8 @@ export default {
   },
   [Events.MessageCreate]: async (msg) => {
     if (msg.author.bot) return;
+
+    if (await handleCommandDeclaration(msg)) return;
 
     logger.debug(`Received message: ${msg.content} from ${msg.author.tag}`);
 

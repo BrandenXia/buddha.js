@@ -7,7 +7,27 @@ type SandboxLanguage = "javascript" | "python";
 type SandboxContext = {
   input: string;
   user_name: string;
+  arguments?: Record<string, string | number | boolean>;
 };
+
+type SandboxParameterType = "string" | "integer" | "number" | "boolean";
+
+type SandboxDeclaration = {
+  name: string;
+  description: string;
+  code: string;
+  parameters: {
+    name: string;
+    type: SandboxParameterType;
+    required: boolean;
+    defaultValue: string | number | boolean | null;
+    position: number;
+  }[];
+};
+
+type SandboxDeclarationResult =
+  | { ok: true; declaration: SandboxDeclaration }
+  | { ok: false; error: string };
 
 type SandboxResult = { ok: true; output: string } | { ok: false; error: string };
 
@@ -98,6 +118,7 @@ const runWorker = async (
 const validateSandboxSource = async (
   language: SandboxLanguage,
   code: string,
+  parameterNames: string[] = [],
 ): Promise<SandboxResult> => {
   if (code.length === 0) return { ok: false, error: "Code cannot be empty." };
   if (code.length > MAX_SOURCE_LENGTH)
@@ -106,7 +127,7 @@ const validateSandboxSource = async (
       error: `Code cannot exceed ${MAX_SOURCE_LENGTH.toLocaleString()} characters.`,
     };
 
-  return runWorker(language, { action: "validate", code });
+  return runWorker(language, { action: "validate", code, parameterNames });
 };
 
 const executeSandbox = async (
@@ -120,12 +141,54 @@ const executeSandbox = async (
   return runWorker(language, {
     action: "execute",
     code,
+    parameterNames: Object.keys(context.arguments ?? {}),
     context: {
       input: context.input.slice(0, MAX_INPUT_LENGTH),
       user_name: context.user_name.slice(0, 100),
+      arguments: Object.fromEntries(
+        Object.entries(context.arguments ?? {}).map(([name, value]) => [
+          name,
+          typeof value === "string" ? value.slice(0, MAX_INPUT_LENGTH) : value,
+        ]),
+      ),
     },
   });
 };
 
-export { executeSandbox, validateSandboxSource };
-export type { SandboxContext, SandboxLanguage, SandboxResult };
+const parseSandboxDeclaration = async (
+  language: SandboxLanguage,
+  code: string,
+): Promise<SandboxDeclarationResult> => {
+  if (code.length === 0) return { ok: false, error: "Code cannot be empty." };
+  if (code.length > MAX_SOURCE_LENGTH)
+    return {
+      ok: false,
+      error: `Code cannot exceed ${MAX_SOURCE_LENGTH.toLocaleString()} characters.`,
+    };
+
+  const result = await runWorker(language, { action: "parse-declaration", code });
+  if (!result.ok) return result;
+
+  try {
+    const declaration = JSON.parse(result.output) as SandboxDeclaration;
+    if (
+      typeof declaration.name !== "string" ||
+      typeof declaration.description !== "string" ||
+      typeof declaration.code !== "string" ||
+      !Array.isArray(declaration.parameters)
+    )
+      throw new Error("Invalid declaration");
+    return { ok: true, declaration };
+  } catch {
+    return { ok: false, error: "The declaration parser returned invalid metadata." };
+  }
+};
+
+export { executeSandbox, parseSandboxDeclaration, validateSandboxSource };
+export type {
+  SandboxContext,
+  SandboxDeclaration,
+  SandboxLanguage,
+  SandboxParameterType,
+  SandboxResult,
+};

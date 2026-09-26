@@ -1,12 +1,17 @@
 import { MessageFlags, PermissionFlagsBits, SlashCommandBuilder } from "discord.js";
 import { UniqueConstraintError } from "sequelize";
 
-import { buildCustomCommand, validateCustomCommandName } from "@/custom-commands";
-import { CustomCommand } from "@/db";
+import {
+  createCustomCommand,
+  parseCustomCommandParameters,
+  validateCustomCommandName,
+} from "@/custom-commands";
+import { CustomCommand, CustomCommandParameter } from "@/db";
 import logger from "@/logger";
 import { validateSandboxSource } from "@/sandbox";
 
 import type { CmdHandler } from "@/commands";
+import type { CustomCommandParameterDefinition } from "@/custom-commands";
 import type { SandboxLanguage } from "@/sandbox";
 
 const managementCommand: CmdHandler = [
@@ -48,10 +53,16 @@ const managementCommand: CmdHandler = [
         .addStringOption((option) =>
           option
             .setName("code")
-            .setDescription("Code using input, user_name, and print()")
+            .setDescription("Code using arguments, input, user_name, and print()")
             .setMinLength(1)
             .setMaxLength(4_000)
             .setRequired(true),
+        )
+        .addStringOption((option) =>
+          option
+            .setName("parameters")
+            .setDescription("Comma-separated names; add ? for optional (topic,count?)")
+            .setMaxLength(400),
         ),
     )
     .addSubcommand((subcommand) =>
@@ -96,32 +107,36 @@ const managementCommand: CmdHandler = [
 
       const code = interaction.options.getString("code", true);
       const language = interaction.options.getString("language", true) as SandboxLanguage;
-      const validation = await validateSandboxSource(language, code);
+      const parsedParameters = parseCustomCommandParameters(
+        interaction.options.getString("parameters"),
+      );
+      if (!parsedParameters.ok) {
+        await interaction.editReply(`Parameters rejected: ${parsedParameters.error}`);
+        return;
+      }
+
+      const validation = await validateSandboxSource(
+        language,
+        code,
+        parsedParameters.parameters.map((parameter) => parameter.name),
+      );
       if (!validation.ok) {
         await interaction.editReply(`Code rejected: ${validation.error}`);
         return;
       }
 
-      let record: CustomCommand | null = null;
-      let registeredId: string | null = null;
       try {
-        record = await CustomCommand.create({
-          guildId: interaction.guildId,
-          commandId: null,
+        await createCustomCommand({
+          guild: interaction.guild,
+          createdBy: interaction.user.id,
           name,
           description: interaction.options.getString("description", true),
           language,
           code,
-          createdBy: interaction.user.id,
+          parameters: parsedParameters.parameters,
         });
-        const registered = await interaction.guild.commands.create(buildCustomCommand(record));
-        registeredId = registered.id;
-        await record.update({ commandId: registered.id });
         await interaction.editReply(`Created /${name}.`);
       } catch (error) {
-        if (record) await record.destroy().catch(() => undefined);
-        if (registeredId)
-          await interaction.guild.commands.delete(registeredId).catch(() => undefined);
         if (error instanceof UniqueConstraintError) {
           await interaction.editReply(`/${name} already exists in this server.`);
           return;
@@ -149,6 +164,9 @@ const managementCommand: CmdHandler = [
           (command) => command.id === commandId || command.name === name,
         );
         if (match) await match.delete();
+        await CustomCommandParameter.destroy({
+          where: { customCommandId: record.get("id") as number },
+        });
         await record.destroy();
         await interaction.editReply(`Deleted /${name}.`);
       } catch (error) {
@@ -165,14 +183,44 @@ const managementCommand: CmdHandler = [
       limit: 20,
       offset: (page - 1) * 20,
     });
+    const parametersByCommand = new Map<number, CustomCommandParameterDefinition[]>();
+    await Promise.all(
+      commands.map(async (command) => {
+        const commandId = command.get("id") as number;
+        const parameters = await CustomCommandParameter.findAll({
+          where: { customCommandId: commandId },
+          order: [["position", "ASC"]],
+        });
+        parametersByCommand.set(
+          commandId,
+          parameters.map((parameter) => ({
+            name: parameter.get("name") as string,
+            type: parameter.get("type") as CustomCommandParameterDefinition["type"],
+            required: parameter.get("required") as boolean,
+            defaultValue: (() => {
+              const value = parameter.get("defaultValue") as string | null;
+              return value === null ? null : (JSON.parse(value) as never);
+            })(),
+            position: parameter.get("position") as number,
+          })),
+        );
+      }),
+    );
     await interaction.editReply(
       commands.length === 0
         ? "No custom commands on this page."
         : commands
-            .map(
-              (command) =>
-                `/${command.get("name") as string} — ${command.get("language") as string}`,
-            )
+            .map((command) => {
+              const parameters = parametersByCommand.get(command.get("id") as number) ?? [];
+              const signature = parameters
+                .map((parameter) =>
+                  parameter.required
+                    ? `<${parameter.name}:${parameter.type}>`
+                    : `[${parameter.name}:${parameter.type}]`,
+                )
+                .join(" ");
+              return `/${command.get("name") as string}${signature ? ` ${signature}` : ""} — ${command.get("language") as string}`;
+            })
             .join("\n"),
     );
   },

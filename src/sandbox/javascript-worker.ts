@@ -4,12 +4,17 @@ import ts from "typescript";
 type Request = {
   action?: unknown;
   code?: unknown;
-  context?: { input?: unknown; user_name?: unknown };
+  parameterNames?: unknown;
+  context?: {
+    input?: unknown;
+    user_name?: unknown;
+    arguments?: Record<string, unknown>;
+  };
 };
 
 const MAX_OUTPUT_LENGTH = 1_800;
 const EXECUTION_TIMEOUT_MS = 500;
-const allowedInputs = new Set(["input", "user_name", "undefined"]);
+const baseAllowedInputs = new Set(["input", "user_name", "undefined"]);
 const allowedCalls = new Set([
   "print",
   "String",
@@ -120,7 +125,24 @@ const numericCalls = new Set([
   "random",
 ]);
 
-const collectDeclarations = (sourceFile: ts.SourceFile) => {
+const normalizeParameterNames = (value: unknown) => {
+  if (!Array.isArray(value)) throw new ValidationError("Invalid parameter definition.");
+  const names = value.map((name) => {
+    if (
+      typeof name !== "string" ||
+      !/^[a-z][a-z0-9_]{0,31}$/.test(name) ||
+      baseAllowedInputs.has(name) ||
+      allowedCalls.has(name)
+    )
+      throw new ValidationError("Invalid parameter definition.");
+    return name;
+  });
+  if (new Set(names).size !== names.length)
+    throw new ValidationError("Duplicate parameter definition.");
+  return names;
+};
+
+const collectDeclarations = (sourceFile: ts.SourceFile, allowedInputs: Set<string>) => {
   const declarations = new Set<string>();
 
   const visit = (node: ts.Node) => {
@@ -139,7 +161,8 @@ const collectDeclarations = (sourceFile: ts.SourceFile) => {
   return declarations;
 };
 
-const validateSource = (code: string) => {
+const validateSource = (code: string, parameterNames: string[]) => {
+  const allowedInputs = new Set([...baseAllowedInputs, ...parameterNames]);
   const sourceFile = ts.createSourceFile(
     "custom-command.js",
     code,
@@ -152,7 +175,7 @@ const validateSource = (code: string) => {
   if (diagnostics && diagnostics.length > 0)
     throw new ValidationError(ts.flattenDiagnosticMessageText(diagnostics[0]!.messageText, " "));
 
-  const declarations = collectDeclarations(sourceFile);
+  const declarations = collectDeclarations(sourceFile, allowedInputs);
 
   // Keeping strings out of local variables prevents compact source from repeatedly doubling a
   // value before the process memory limit can intervene. Strings can still be used directly in
@@ -268,6 +291,134 @@ const validateSource = (code: string) => {
   visit(sourceFile);
 };
 
+const parseDeclarationDefault = (
+  expression: ts.Expression,
+  parameterType: "string" | "integer" | "number" | "boolean",
+) => {
+  let value: string | number | boolean;
+  if (ts.isStringLiteral(expression)) value = expression.text;
+  else if (ts.isNumericLiteral(expression)) value = Number(expression.text);
+  else if (expression.kind === ts.SyntaxKind.TrueKeyword) value = true;
+  else if (expression.kind === ts.SyntaxKind.FalseKeyword) value = false;
+  else if (
+    ts.isPrefixUnaryExpression(expression) &&
+    expression.operator === ts.SyntaxKind.MinusToken &&
+    ts.isNumericLiteral(expression.operand)
+  )
+    value = -Number(expression.operand.text);
+  else throw new ValidationError("Parameter defaults must be string, number, or boolean literals.");
+
+  const matches =
+    (parameterType === "string" && typeof value === "string") ||
+    ((parameterType === "integer" || parameterType === "number") &&
+      typeof value === "number" &&
+      (parameterType !== "integer" || Number.isInteger(value))) ||
+    (parameterType === "boolean" && typeof value === "boolean");
+  if (!matches) throw new ValidationError("A parameter default does not match its type.");
+  if (typeof value === "number" && !Number.isFinite(value))
+    throw new ValidationError("Numeric parameter defaults must be finite.");
+  if (parameterType === "integer" && typeof value === "number" && !Number.isSafeInteger(value))
+    throw new ValidationError("Integer parameter defaults must be safe integers.");
+  return value;
+};
+
+const parseDeclaration = (code: string) => {
+  const sourceFile = ts.createSourceFile(
+    "command-declaration.ts",
+    code,
+    ts.ScriptTarget.ESNext,
+    true,
+    ts.ScriptKind.TS,
+  );
+  const diagnostics = (sourceFile as ts.SourceFile & { parseDiagnostics?: ts.Diagnostic[] })
+    .parseDiagnostics;
+  if (diagnostics && diagnostics.length > 0)
+    throw new ValidationError(ts.flattenDiagnosticMessageText(diagnostics[0]!.messageText, " "));
+  if (sourceFile.statements.length !== 1 || !ts.isFunctionDeclaration(sourceFile.statements[0]))
+    throw new ValidationError("Declare exactly one top-level function.");
+
+  const declaration = sourceFile.statements[0];
+  if (!declaration.name || !declaration.body)
+    throw new ValidationError("The declared function needs a name and body.");
+  if (
+    declaration.asteriskToken ||
+    declaration.typeParameters?.length ||
+    declaration.modifiers?.length
+  )
+    throw new ValidationError("Async, generator, generic, and modified functions are not allowed.");
+
+  const jsDoc = (declaration as ts.FunctionDeclaration & { jsDoc?: ts.JSDoc[] }).jsDoc;
+  let description = jsDoc?.find((doc) => typeof doc.comment === "string")?.comment as
+    | string
+    | undefined;
+  let bodyStatements = [...declaration.body.statements];
+  const firstStatement = bodyStatements[0];
+  if (
+    !description &&
+    firstStatement &&
+    ts.isExpressionStatement(firstStatement) &&
+    ts.isStringLiteral(firstStatement.expression)
+  ) {
+    description = firstStatement.expression.text;
+    bodyStatements = bodyStatements.slice(1);
+  }
+  description = description ? description.replace(/\s+/g, " ").trim() : undefined;
+  if (!description)
+    throw new ValidationError("Add a JSDoc comment or leading string for the command description.");
+  if (description.length > 100)
+    throw new ValidationError("The command description cannot exceed 100 characters.");
+
+  const parameters = declaration.parameters.map((parameter, position) => {
+    if (!ts.isIdentifier(parameter.name) || parameter.dotDotDotToken || parameter.modifiers?.length)
+      throw new ValidationError("Use simple positional parameters only.");
+
+    let type: "string" | "integer" | "number" | "boolean";
+    if (!parameter.type) {
+      if (parameter.initializer && ts.isNumericLiteral(parameter.initializer)) type = "number";
+      else if (
+        parameter.initializer &&
+        (parameter.initializer.kind === ts.SyntaxKind.TrueKeyword ||
+          parameter.initializer.kind === ts.SyntaxKind.FalseKeyword)
+      )
+        type = "boolean";
+      else type = "string";
+    } else if (parameter.type.kind === ts.SyntaxKind.StringKeyword) type = "string";
+    else if (parameter.type.kind === ts.SyntaxKind.NumberKeyword) type = "number";
+    else if (parameter.type.kind === ts.SyntaxKind.BooleanKeyword) type = "boolean";
+    else if (
+      ts.isTypeReferenceNode(parameter.type) &&
+      ts.isIdentifier(parameter.type.typeName) &&
+      parameter.type.typeName.text === "integer"
+    )
+      type = "integer";
+    else
+      throw new ValidationError(
+        `Parameter '${parameter.name.text}' needs a string, number, integer, or boolean type.`,
+      );
+
+    return {
+      name: parameter.name.text,
+      type,
+      required: !parameter.questionToken && !parameter.initializer,
+      defaultValue: parameter.initializer
+        ? parseDeclarationDefault(parameter.initializer, type)
+        : null,
+      position,
+    };
+  });
+
+  const executable =
+    bodyStatements.map((statement) => statement.getText(sourceFile)).join("\n") || ";";
+  const parameterNames = parameters.map((parameter) => parameter.name);
+  validateSource(executable, parameterNames);
+  return {
+    name: declaration.name.text,
+    description,
+    code: executable,
+    parameters,
+  };
+};
+
 const formatValue = (value: unknown) => {
   if (value === null) return "null";
   if (["string", "number", "boolean", "bigint", "undefined"].includes(typeof value))
@@ -275,7 +426,7 @@ const formatValue = (value: unknown) => {
   throw new Error("print() accepts primitive values only.");
 };
 
-const execute = (code: string, request: Request) => {
+const execute = (code: string, request: Request, parameterNames: string[]) => {
   const lines: string[] = [];
   let outputLength = 0;
   const print = (...values: unknown[]) => {
@@ -285,29 +436,32 @@ const execute = (code: string, request: Request) => {
     lines.push(line);
   };
 
-  const context = vm.createContext(
-    {
-      input: typeof request.context?.input === "string" ? request.context.input : "",
-      user_name: typeof request.context?.user_name === "string" ? request.context.user_name : "",
-      print,
-      String,
-      Number,
-      Boolean,
-      parseInt,
-      parseFloat,
-      abs: Math.abs,
-      ceil: Math.ceil,
-      floor: Math.floor,
-      round: Math.round,
-      min: Math.min,
-      max: Math.max,
-      random: Math.random,
-    },
-    {
-      codeGeneration: { strings: false, wasm: false },
-      name: "custom-command",
-    },
-  );
+  const globals: Record<string, unknown> = {
+    input: typeof request.context?.input === "string" ? request.context.input : "",
+    user_name: typeof request.context?.user_name === "string" ? request.context.user_name : "",
+    print,
+    String,
+    Number,
+    Boolean,
+    parseInt,
+    parseFloat,
+    abs: Math.abs,
+    ceil: Math.ceil,
+    floor: Math.floor,
+    round: Math.round,
+    min: Math.min,
+    max: Math.max,
+    random: Math.random,
+  };
+  for (const name of parameterNames) {
+    const value = request.context?.arguments?.[name];
+    globals[name] = ["string", "number", "boolean"].includes(typeof value) ? value : "";
+  }
+
+  const context = vm.createContext(globals, {
+    codeGeneration: { strings: false, wasm: false },
+    name: "custom-command",
+  });
 
   new vm.Script(`"use strict";\n${code}`, { filename: "custom-command.js" }).runInContext(context, {
     timeout: EXECUTION_TIMEOUT_MS,
@@ -322,12 +476,17 @@ const respond = (response: Record<string, unknown>) =>
 try {
   const request = JSON.parse(await Bun.stdin.text()) as Request;
   if (typeof request.code !== "string") throw new ValidationError("Code is required.");
-  validateSource(request.code);
+  if (request.action === "parse-declaration")
+    respond({ ok: true, output: JSON.stringify(parseDeclaration(request.code)) });
+  else {
+    const parameterNames = normalizeParameterNames(request.parameterNames ?? []);
+    validateSource(request.code, parameterNames);
 
-  if (request.action === "validate") respond({ ok: true, output: "Code is valid." });
-  else if (request.action === "execute")
-    respond({ ok: true, output: execute(request.code, request) });
-  else throw new ValidationError("Invalid runner action.");
+    if (request.action === "validate") respond({ ok: true, output: "Code is valid." });
+    else if (request.action === "execute")
+      respond({ ok: true, output: execute(request.code, request, parameterNames) });
+    else throw new ValidationError("Invalid runner action.");
+  }
 } catch (error) {
   const message = error instanceof Error ? error.message : "Code could not be processed.";
   respond({

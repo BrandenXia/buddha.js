@@ -1,5 +1,6 @@
 import ast
 import json
+import keyword
 import resource
 import sys
 
@@ -14,6 +15,10 @@ class ValidationError(Exception):
 
 
 class ExecutionLimitError(Exception):
+    pass
+
+
+class ResponseComplete(Exception):
     pass
 
 
@@ -54,7 +59,7 @@ SAFE_FUNCTIONS = {
     "sum",
     "sorted",
 }
-SAFE_INPUTS = {"input", "user_name"}
+BASE_SAFE_INPUTS = {"input", "user_name"}
 
 ALLOWED_NODES = {
     ast.Module,
@@ -108,7 +113,111 @@ ALLOWED_NODES = {
 }
 
 
-def validate_source(code):
+def parse_declaration(code):
+    try:
+        tree = ast.parse(code, filename="<command-declaration>", mode="exec")
+    except SyntaxError as error:
+        raise ValidationError(f"Syntax error on line {error.lineno}.") from None
+
+    if len(tree.body) != 1 or not isinstance(tree.body[0], ast.FunctionDef):
+        raise ValidationError("Declare exactly one top-level function.")
+    function = tree.body[0]
+    if function.decorator_list:
+        raise ValidationError("Function decorators are not allowed.")
+    if (
+        function.args.posonlyargs
+        or function.args.kwonlyargs
+        or function.args.vararg
+        or function.args.kwarg
+    ):
+        raise ValidationError("Use simple positional parameters only.")
+
+    description = ast.get_docstring(function, clean=True)
+    if not description:
+        raise ValidationError("Add a function docstring for the command description.")
+    description = " ".join(description.split())
+    if len(description) > 100:
+        raise ValidationError("The command description cannot exceed 100 characters.")
+
+    type_names = {"str": "string", "int": "integer", "float": "number", "bool": "boolean"}
+    defaults_start = len(function.args.args) - len(function.args.defaults)
+    parameters = []
+    for position, argument in enumerate(function.args.args):
+        if not isinstance(argument.annotation, ast.Name) or argument.annotation.id not in type_names:
+            raise ValidationError(
+                f"Parameter '{argument.arg}' needs a str, int, float, or bool annotation."
+            )
+        parameter_type = type_names[argument.annotation.id]
+        has_default = position >= defaults_start
+        default_value = None
+        if has_default:
+            default_node = function.args.defaults[position - defaults_start]
+            try:
+                default_value = ast.literal_eval(default_node)
+            except (ValueError, TypeError):
+                raise ValidationError(
+                    f"Parameter '{argument.arg}' must use a literal default value."
+                ) from None
+            valid_default = (
+                (parameter_type == "string" and type(default_value) is str)
+                or (parameter_type == "integer" and type(default_value) is int)
+                or (
+                    parameter_type == "number"
+                    and type(default_value) in (int, float)
+                )
+                or (parameter_type == "boolean" and type(default_value) is bool)
+            )
+            if not valid_default:
+                raise ValidationError(
+                    f"Default value for '{argument.arg}' does not match its annotation."
+                )
+        parameters.append(
+            {
+                "name": argument.arg,
+                "type": parameter_type,
+                "required": not has_default,
+                "defaultValue": default_value,
+                "position": position,
+            }
+        )
+
+    body = function.body
+    if body and isinstance(body[0], ast.Expr) and isinstance(body[0].value, ast.Constant):
+        if isinstance(body[0].value.value, str):
+            body = body[1:]
+    executable = ast.unparse(ast.Module(body=body or [ast.Pass()], type_ignores=[]))
+    parameter_names = [parameter["name"] for parameter in parameters]
+    validate_source(executable, parameter_names)
+    return {
+        "name": function.name,
+        "description": description,
+        "code": executable,
+        "parameters": parameters,
+    }
+
+
+def normalize_parameter_names(value):
+    if not isinstance(value, list):
+        raise ValidationError("Invalid parameter definition.")
+    names = []
+    for name in value:
+        if (
+            not isinstance(name, str)
+            or not name.isascii()
+            or not name.isidentifier()
+            or keyword.iskeyword(name)
+            or name.startswith("_")
+            or name in BASE_SAFE_INPUTS | SAFE_FUNCTIONS
+        ):
+            raise ValidationError("Invalid parameter definition.")
+        names.append(name)
+    if len(set(names)) != len(names):
+        raise ValidationError("Duplicate parameter definition.")
+    return names
+
+
+def validate_source(code, parameter_names):
+    safe_inputs = BASE_SAFE_INPUTS | set(parameter_names)
     try:
         tree = ast.parse(code, filename="<custom-command>", mode="exec")
     except SyntaxError as error:
@@ -123,14 +232,14 @@ def validate_source(code):
         if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
     }
     for name in declarations:
-        if name.startswith("_") or name in SAFE_FUNCTIONS or name in SAFE_INPUTS:
+        if name.startswith("_") or name in SAFE_FUNCTIONS or name in safe_inputs:
             raise ValidationError(f"Variable name '{name}' is reserved.")
 
     for node in ast.walk(tree):
         if type(node) not in ALLOWED_NODES:
             raise ValidationError(f"{type(node).__name__} syntax is not allowed.")
         if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load):
-            if node.id not in declarations | SAFE_FUNCTIONS | SAFE_INPUTS:
+            if node.id not in declarations | SAFE_FUNCTIONS | safe_inputs:
                 raise ValidationError(f"Name '{node.id}' is not available.")
             if node.id in SAFE_FUNCTIONS and id(node) not in direct_call_names:
                 raise ValidationError("Sandbox functions may only be used as direct calls.")
@@ -235,7 +344,7 @@ def format_value(value, depth=0):
     raise ValidationError("print() accepts primitive values and simple collections only.")
 
 
-def execute(tree, context):
+def execute(tree, context, parameter_names):
     lines = []
     output_length = 0
 
@@ -269,6 +378,12 @@ def execute(tree, context):
         if isinstance(context.get("user_name", ""), str)
         else "",
     }
+    arguments = context.get("arguments", {})
+    if not isinstance(arguments, dict):
+        arguments = {}
+    for name in parameter_names:
+        value = arguments.get(name, "")
+        namespace[name] = value if type(value) in (str, int, float, bool) else ""
 
     compiled = compile(tree, "<custom-command>", "exec")
     sys.settrace(make_trace())
@@ -289,14 +404,27 @@ try:
     code = request.get("code")
     if not isinstance(code, str):
         raise ValidationError("Code is required.")
-    parsed = validate_source(code)
+    if request.get("action") == "parse-declaration":
+        respond({"ok": True, "output": json.dumps(parse_declaration(code), separators=(",", ":"))})
+        raise ResponseComplete()
+    parameter_names = normalize_parameter_names(request.get("parameterNames", []))
+    parsed = validate_source(code, parameter_names)
     if request.get("action") == "validate":
         respond({"ok": True, "output": "Code is valid."})
     elif request.get("action") == "execute":
         context = request.get("context")
-        respond({"ok": True, "output": execute(parsed, context if isinstance(context, dict) else {})})
+        respond(
+            {
+                "ok": True,
+                "output": execute(
+                    parsed, context if isinstance(context, dict) else {}, parameter_names
+                ),
+            }
+        )
     else:
         raise ValidationError("Invalid runner action.")
+except ResponseComplete:
+    pass
 except (ValidationError, ExecutionLimitError, ValueError, TypeError, ZeroDivisionError) as error:
     respond({"ok": False, "error": str(error)[:300]})
 except BaseException:

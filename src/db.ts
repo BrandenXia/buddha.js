@@ -40,6 +40,7 @@ CustomCommand.init(
     description: { type: DataTypes.STRING(100), allowNull: false },
     language: { type: DataTypes.STRING(16), allowNull: false },
     code: { type: DataTypes.TEXT, allowNull: false },
+    includeInput: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: true },
     createdBy: { type: DataTypes.STRING, allowNull: false },
   },
   {
@@ -49,5 +50,34 @@ CustomCommand.init(
   },
 );
 
+class CustomCommandParameter extends Model {}
+CustomCommandParameter.init(
+  {
+    id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
+    customCommandId: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      references: { model: CustomCommand, key: "id" },
+      onDelete: "CASCADE",
+    },
+    name: { type: DataTypes.STRING(32), allowNull: false },
+    type: { type: DataTypes.STRING(16), allowNull: false, defaultValue: "string" },
+    required: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: true },
+    defaultValue: { type: DataTypes.TEXT, allowNull: true },
+    position: { type: DataTypes.INTEGER, allowNull: false },
+  },
+  {
+    sequelize,
+    modelName: "custom_command_parameter",
+    indexes: [{ unique: true, fields: ["customCommandId", "name"] }],
+  },
+);
+
+CustomCommand.hasMany(CustomCommandParameter, {
+  foreignKey: "customCommandId",
+  onDelete: "CASCADE",
+});
+CustomCommandParameter.belongsTo(CustomCommand, { foreignKey: "customCommandId" });
+
 export default sequelize;
-export { CustomCommand, LotteryLeaderboard, Rules };
+export { CustomCommand, CustomCommandParameter, LotteryLeaderboard, Rules };
