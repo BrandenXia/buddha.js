@@ -1,10 +1,12 @@
 import { REST, Routes } from "discord.js";
 
 import crypto from "@/commands/crypto";
+import customCommand from "@/commands/custom-command";
 import fortune from "@/commands/fortune";
 import lottery from "@/commands/lottery";
 import rule from "@/commands/rule";
 import talk from "@/commands/talk";
+import { handleCustomCommand, syncCustomCommands } from "@/custom-commands";
 import { CLIENT_ID, TOKEN } from "@/env";
 import logger from "@/logger";
 
@@ -20,10 +22,12 @@ const commands: {
   ...fortune,
   ...rule,
   ...talk,
+  ...customCommand,
 };
 
 const handleCommands = async (interaction: ChatInputCommandInteraction) => {
   if (!Object.keys(commands).includes(interaction.commandName)) {
+    if (await handleCustomCommand(interaction)) return;
     logger.error(`Unknown command: ${interaction.commandName}`);
     return;
   }
@@ -40,6 +44,8 @@ const registerCommands = async () => {
   await rest.put(Routes.applicationCommands(CLIENT_ID), {
     body: Object.values(commands).map((h) => h[0].toJSON()),
   });
+
+  await syncCustomCommands(rest, CLIENT_ID);
 
   logger.info("Commands successfully registered.");
 };

@@ -30,5 +30,24 @@ Rules.init(
   { sequelize, modelName: "rules" },
 );
 
+class CustomCommand extends Model {}
+CustomCommand.init(
+  {
+    id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
+    guildId: { type: DataTypes.STRING, allowNull: false },
+    commandId: { type: DataTypes.STRING, allowNull: true },
+    name: { type: DataTypes.STRING(32), allowNull: false },
+    description: { type: DataTypes.STRING(100), allowNull: false },
+    language: { type: DataTypes.STRING(16), allowNull: false },
+    code: { type: DataTypes.TEXT, allowNull: false },
+    createdBy: { type: DataTypes.STRING, allowNull: false },
+  },
+  {
+    sequelize,
+    modelName: "custom_command",
+    indexes: [{ unique: true, fields: ["guildId", "name"] }],
+  },
+);
+
 export default sequelize;
-export { LotteryLeaderboard, Rules };
+export { CustomCommand, LotteryLeaderboard, Rules };
