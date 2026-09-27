@@ -34,7 +34,7 @@ const version: CmdHandler = [
         .addFields(
           {
             name: "Commit",
-            value: `\`${hash}\``,
+            value: `[\`${hash}\`](https://github.com/BrandenXia/buddha.js/commit/${hash})`,
             inline: true,
           },
           {
