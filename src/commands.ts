@@ -6,6 +6,7 @@ import fortune from "@/commands/fortune";
 import lottery from "@/commands/lottery";
 import rule from "@/commands/rule";
 import talk from "@/commands/talk";
+import upgrade from "@/commands/upgrade";
 import { handleCustomCommand, syncCustomCommands } from "@/custom-commands";
 import { CLIENT_ID, TOKEN } from "@/env";
 import logger from "@/logger";
@@ -23,6 +24,7 @@ const commands: {
   ...rule,
   ...talk,
   ...customCommand,
+  ...upgrade,
 };
 
 const handleCommands = async (interaction: ChatInputCommandInteraction) => {
