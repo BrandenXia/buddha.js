@@ -15,7 +15,11 @@ const version: CmdHandler = [
     .setName("version")
     .setDescription("Get the current version of the bot."),
   async (interaction) => {
-    const proc = Bun.spawn({ cmd: ["git", "log", "-1", "--oneline"] });
+    const proc = Bun.spawn({
+      cmd: ["git", "log", "-1", "--format=%h%n%s%n%ci"],
+      stdout: "pipe",
+      stderr: "pipe",
+    });
     await proc.exited;
 
     if (proc.exitCode !== 0)
