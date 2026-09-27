@@ -8,6 +8,7 @@ import type { SandboxLanguage, SandboxParameterType } from "@/sandbox";
 import type { ChatInputCommandInteraction, Guild } from "discord.js";
 
 const RESERVED_COMMAND_NAMES = new Set([
+  "create-command",
   "custom-command",
   "decrypt",
   "encrypt",
@@ -114,10 +115,6 @@ type CustomCommandParameterDefinition = {
   position: number;
 };
 
-type ParameterParseResult =
-  | { ok: true; parameters: CustomCommandParameterDefinition[] }
-  | { ok: false; error: string };
-
 const getString = (command: CustomCommand, key: string) => command.get(key) as string;
 
 const parameterFromModel = (
@@ -162,31 +159,6 @@ const validateCustomCommandParameters = (
     }
   }
   return null;
-};
-
-const parseCustomCommandParameters = (value: string | null): ParameterParseResult => {
-  if (!value?.trim()) return { ok: true, parameters: [] };
-
-  const entries = value.split(",").map((entry) => entry.trim());
-  if (entries.some((entry) => entry.length === 0))
-    return { ok: false, error: "Parameter names cannot be empty." };
-  if (entries.length > MAX_CUSTOM_PARAMETERS)
-    return {
-      ok: false,
-      error: `Custom commands support at most ${MAX_CUSTOM_PARAMETERS} named parameters.`,
-    };
-
-  const parameters = entries.map((entry, position) => ({
-    name: entry.endsWith("?") ? entry.slice(0, -1) : entry,
-    type: "string" as const,
-    required: !entry.endsWith("?"),
-    defaultValue: null,
-    position,
-  }));
-  const error = validateCustomCommandParameters(parameters);
-  if (error) return { ok: false, error };
-
-  return { ok: true, parameters };
 };
 
 const buildCustomCommand = (
@@ -444,7 +416,6 @@ export {
   buildCustomCommand,
   createCustomCommand,
   handleCustomCommand,
-  parseCustomCommandParameters,
   syncCustomCommands,
   validateCustomCommandName,
   validateCustomCommandParameters,

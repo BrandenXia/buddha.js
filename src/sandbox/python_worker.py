@@ -1,7 +1,11 @@
 import ast
 import json
 import keyword
+import math
+import random
+import re
 import resource
+import statistics
 import sys
 
 MAX_OUTPUT_LENGTH = 1_800
@@ -45,6 +49,10 @@ def safe_range(*args):
 
 
 SAFE_FUNCTIONS = {
+    "all",
+    "any",
+    "ascii",
+    "bin",
     "print",
     "str",
     "int",
@@ -58,8 +66,163 @@ SAFE_FUNCTIONS = {
     "max",
     "sum",
     "sorted",
+    "chr",
+    "dict",
+    "enumerate",
+    "hex",
+    "list",
+    "ord",
+    "reversed",
+    "set",
+    "tuple",
+    "zip",
 }
 BASE_SAFE_INPUTS = {"input", "user_name"}
+
+SAFE_STRING_METHODS = {
+    "capitalize",
+    "casefold",
+    "center",
+    "count",
+    "endswith",
+    "expandtabs",
+    "find",
+    "index",
+    "isalnum",
+    "isalpha",
+    "isascii",
+    "isdecimal",
+    "isdigit",
+    "isidentifier",
+    "islower",
+    "isnumeric",
+    "isprintable",
+    "isspace",
+    "istitle",
+    "isupper",
+    "join",
+    "ljust",
+    "lower",
+    "lstrip",
+    "removeprefix",
+    "removesuffix",
+    "replace",
+    "rfind",
+    "rindex",
+    "rjust",
+    "rsplit",
+    "rstrip",
+    "split",
+    "splitlines",
+    "startswith",
+    "strip",
+    "swapcase",
+    "title",
+    "upper",
+    "zfill",
+}
+
+SAFE_MODULE_CALLS = {
+    "json": {"dumps", "loads"},
+    "math": {
+        "acos",
+        "acosh",
+        "asin",
+        "asinh",
+        "atan",
+        "atan2",
+        "atanh",
+        "ceil",
+        "comb",
+        "copysign",
+        "cos",
+        "cosh",
+        "degrees",
+        "dist",
+        "erf",
+        "erfc",
+        "exp",
+        "expm1",
+        "fabs",
+        "factorial",
+        "floor",
+        "fmod",
+        "frexp",
+        "fsum",
+        "gamma",
+        "gcd",
+        "hypot",
+        "isclose",
+        "isfinite",
+        "isinf",
+        "isnan",
+        "isqrt",
+        "lcm",
+        "ldexp",
+        "lgamma",
+        "log",
+        "log10",
+        "log1p",
+        "log2",
+        "modf",
+        "nextafter",
+        "perm",
+        "pow",
+        "prod",
+        "radians",
+        "remainder",
+        "sin",
+        "sinh",
+        "sqrt",
+        "tan",
+        "tanh",
+        "trunc",
+        "ulp",
+    },
+    "random": {
+        "choice",
+        "choices",
+        "getrandbits",
+        "randint",
+        "random",
+        "randrange",
+        "sample",
+        "triangular",
+        "uniform",
+    },
+    "re": {"escape", "findall", "finditer", "fullmatch", "match", "search", "split", "sub", "subn"},
+    "statistics": {
+        "correlation",
+        "covariance",
+        "fmean",
+        "geometric_mean",
+        "harmonic_mean",
+        "linear_regression",
+        "mean",
+        "median",
+        "median_grouped",
+        "median_high",
+        "median_low",
+        "mode",
+        "multimode",
+        "pstdev",
+        "pvariance",
+        "quantiles",
+        "stdev",
+        "variance",
+    },
+}
+SAFE_MODULE_VALUES = {
+    "math": {"e", "inf", "nan", "pi", "tau"},
+    "re": {"A", "ASCII", "I", "IGNORECASE", "M", "MULTILINE", "S", "DOTALL", "X", "VERBOSE"},
+}
+SAFE_MODULE_OBJECTS = {
+    "json": json,
+    "math": math,
+    "random": random,
+    "re": re,
+    "statistics": statistics,
+}
 
 ALLOWED_NODES = {
     ast.Module,
@@ -73,8 +236,18 @@ ALLOWED_NODES = {
     ast.List,
     ast.Tuple,
     ast.Dict,
+    ast.Set,
     ast.Subscript,
     ast.Slice,
+    ast.Attribute,
+    ast.Import,
+    ast.alias,
+    ast.keyword,
+    ast.GeneratorExp,
+    ast.ListComp,
+    ast.SetComp,
+    ast.DictComp,
+    ast.comprehension,
     ast.BinOp,
     ast.UnaryOp,
     ast.BoolOp,
@@ -231,6 +404,25 @@ def validate_source(code, parameter_names):
         for node in ast.walk(tree)
         if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
     }
+    direct_call_attributes = {
+        id(node.func)
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+    }
+    attribute_bases = {
+        id(node.value)
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name)
+    }
+    imported_modules = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                if alias.asname or alias.name not in SAFE_MODULE_OBJECTS:
+                    raise ValidationError(
+                        "Only direct imports of math, random, statistics, re, and json are allowed."
+                    )
+                imported_modules.add(alias.name)
     for name in declarations:
         if name.startswith("_") or name in SAFE_FUNCTIONS or name in safe_inputs:
             raise ValidationError(f"Variable name '{name}' is reserved.")
@@ -239,21 +431,45 @@ def validate_source(code, parameter_names):
         if type(node) not in ALLOWED_NODES:
             raise ValidationError(f"{type(node).__name__} syntax is not allowed.")
         if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load):
-            if node.id not in declarations | SAFE_FUNCTIONS | safe_inputs:
+            if node.id not in declarations | SAFE_FUNCTIONS | safe_inputs | imported_modules:
                 raise ValidationError(f"Name '{node.id}' is not available.")
             if node.id in SAFE_FUNCTIONS and id(node) not in direct_call_names:
                 raise ValidationError("Sandbox functions may only be used as direct calls.")
+            if node.id in imported_modules and id(node) not in attribute_bases:
+                raise ValidationError("Imported modules may only be used through safe attributes.")
         if isinstance(node, ast.Call):
-            if not isinstance(node.func, ast.Name) or node.func.id not in SAFE_FUNCTIONS:
+            valid_name_call = isinstance(node.func, ast.Name) and node.func.id in SAFE_FUNCTIONS
+            valid_attribute_call = isinstance(node.func, ast.Attribute)
+            if not valid_name_call and not valid_attribute_call:
                 raise ValidationError("Only documented sandbox functions may be called.")
-            if node.keywords:
-                raise ValidationError("Keyword arguments are not allowed.")
+            if any(keyword_argument.arg is None for keyword_argument in node.keywords):
+                raise ValidationError("Expanded keyword arguments are not allowed.")
+        if isinstance(node, ast.Attribute):
+            if node.attr.startswith("_"):
+                raise ValidationError("Private and reflective attributes are not allowed.")
+            is_string_method = node.attr in SAFE_STRING_METHODS
+            is_module_call = (
+                isinstance(node.value, ast.Name)
+                and node.value.id in imported_modules
+                and node.attr in SAFE_MODULE_CALLS.get(node.value.id, set())
+            )
+            is_module_value = (
+                isinstance(node.value, ast.Name)
+                and node.value.id in imported_modules
+                and node.attr in SAFE_MODULE_VALUES.get(node.value.id, set())
+            )
+            if not is_string_method and not is_module_call and not is_module_value:
+                raise ValidationError(f"Attribute '{node.attr}' is not available.")
+            if (is_string_method or is_module_call) and id(node) not in direct_call_attributes:
+                raise ValidationError("Sandbox methods may only be used as direct calls.")
         if isinstance(node, (ast.Assign, ast.AugAssign)):
             targets = node.targets if isinstance(node, ast.Assign) else [node.target]
             if any(not isinstance(target, ast.Name) for target in targets):
                 raise ValidationError("Assignments may only update local variables.")
         if isinstance(node, ast.For) and not isinstance(node.target, ast.Name):
             raise ValidationError("Loop targets must be simple variable names.")
+        if isinstance(node, ast.comprehension) and not isinstance(node.target, ast.Name):
+            raise ValidationError("Comprehension targets must be simple variable names.")
         if isinstance(node, ast.Constant):
             if type(node.value) is int and abs(node.value) > 10_000:
                 raise ValidationError("Integer literals are limited to 10,000.")
@@ -287,8 +503,9 @@ def approximate_size(value, seen=None):
         return 0
     seen.add(value_id)
     size = sys.getsizeof(value)
-    if isinstance(value, (list, tuple)):
-        size += sum(approximate_size(item, seen) for item in value[:1_000])
+    if isinstance(value, (list, tuple, set)):
+        values = list(value)[:1_000]
+        size += sum(approximate_size(item, seen) for item in values)
     elif isinstance(value, dict):
         for index, (key, item) in enumerate(value.items()):
             if index >= 1_000:
@@ -329,10 +546,15 @@ def format_value(value, depth=0):
         return "None"
     if type(value) in (str, int, float, bool):
         return str(value)
-    if type(value) in (list, tuple):
+    if type(value) in (list, tuple, set):
         if len(value) > 100:
             raise ExecutionLimitError("Printed collections are limited to 100 values.")
-        opening, closing = ("[", "]") if type(value) is list else ("(", ")")
+        if type(value) is list:
+            opening, closing = "[", "]"
+        elif type(value) is tuple:
+            opening, closing = "(", ")"
+        else:
+            opening, closing = "{", "}"
         return opening + ", ".join(format_value(item, depth + 1) for item in value) + closing
     if type(value) is dict:
         if len(value) > 100:
@@ -357,6 +579,10 @@ def execute(tree, context, parameter_names):
         lines.append(line)
 
     safe_builtins = {
+        "all": all,
+        "any": any,
+        "ascii": ascii,
+        "bin": bin,
         "print": safe_print,
         "str": str,
         "int": int,
@@ -370,7 +596,24 @@ def execute(tree, context, parameter_names):
         "max": max,
         "sum": sum,
         "sorted": sorted,
+        "chr": chr,
+        "dict": dict,
+        "enumerate": enumerate,
+        "hex": hex,
+        "list": list,
+        "ord": ord,
+        "reversed": reversed,
+        "set": set,
+        "tuple": tuple,
+        "zip": zip,
     }
+
+    def safe_import(name, _globals=None, _locals=None, fromlist=(), level=0):
+        if level != 0 or fromlist or name not in SAFE_MODULE_OBJECTS:
+            raise ValidationError("That module import is not allowed.")
+        return SAFE_MODULE_OBJECTS[name]
+
+    safe_builtins["__import__"] = safe_import
     namespace = {
         "__builtins__": safe_builtins,
         "input": context.get("input", "") if isinstance(context.get("input", ""), str) else "",

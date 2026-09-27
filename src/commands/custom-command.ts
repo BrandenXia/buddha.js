@@ -1,18 +1,10 @@
 import { MessageFlags, PermissionFlagsBits, SlashCommandBuilder } from "discord.js";
-import { UniqueConstraintError } from "sequelize";
 
-import {
-  createCustomCommand,
-  parseCustomCommandParameters,
-  validateCustomCommandName,
-} from "@/custom-commands";
 import { CustomCommand, CustomCommandParameter } from "@/db";
 import logger from "@/logger";
-import { validateSandboxSource } from "@/sandbox";
 
 import type { CmdHandler } from "@/commands";
 import type { CustomCommandParameterDefinition } from "@/custom-commands";
-import type { SandboxLanguage } from "@/sandbox";
 
 const managementCommand: CmdHandler = [
   new SlashCommandBuilder()
@@ -20,51 +12,6 @@ const managementCommand: CmdHandler = [
     .setDescription("Manage this server's sandboxed custom commands")
     .setDMPermission(false)
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
-    .addSubcommand((subcommand) =>
-      subcommand
-        .setName("create")
-        .setDescription("Create a sandboxed command")
-        .addStringOption((option) =>
-          option
-            .setName("name")
-            .setDescription("Lowercase command name without the slash")
-            .setMinLength(1)
-            .setMaxLength(32)
-            .setRequired(true),
-        )
-        .addStringOption((option) =>
-          option
-            .setName("description")
-            .setDescription("Description shown in Discord")
-            .setMinLength(1)
-            .setMaxLength(100)
-            .setRequired(true),
-        )
-        .addStringOption((option) =>
-          option
-            .setName("language")
-            .setDescription("Sandbox language")
-            .addChoices(
-              { name: "JavaScript", value: "javascript" },
-              { name: "Python", value: "python" },
-            )
-            .setRequired(true),
-        )
-        .addStringOption((option) =>
-          option
-            .setName("code")
-            .setDescription("Code using arguments, input, user_name, and print()")
-            .setMinLength(1)
-            .setMaxLength(4_000)
-            .setRequired(true),
-        )
-        .addStringOption((option) =>
-          option
-            .setName("parameters")
-            .setDescription("Comma-separated names; add ? for optional (topic,count?)")
-            .setMaxLength(400),
-        ),
-    )
     .addSubcommand((subcommand) =>
       subcommand
         .setName("delete")
@@ -96,56 +43,6 @@ const managementCommand: CmdHandler = [
 
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
     const subcommand = interaction.options.getSubcommand();
-
-    if (subcommand === "create") {
-      const name = interaction.options.getString("name", true);
-      const nameError = validateCustomCommandName(name);
-      if (nameError) {
-        await interaction.editReply(nameError);
-        return;
-      }
-
-      const code = interaction.options.getString("code", true);
-      const language = interaction.options.getString("language", true) as SandboxLanguage;
-      const parsedParameters = parseCustomCommandParameters(
-        interaction.options.getString("parameters"),
-      );
-      if (!parsedParameters.ok) {
-        await interaction.editReply(`Parameters rejected: ${parsedParameters.error}`);
-        return;
-      }
-
-      const validation = await validateSandboxSource(
-        language,
-        code,
-        parsedParameters.parameters.map((parameter) => parameter.name),
-      );
-      if (!validation.ok) {
-        await interaction.editReply(`Code rejected: ${validation.error}`);
-        return;
-      }
-
-      try {
-        await createCustomCommand({
-          guild: interaction.guild,
-          createdBy: interaction.user.id,
-          name,
-          description: interaction.options.getString("description", true),
-          language,
-          code,
-          parameters: parsedParameters.parameters,
-        });
-        await interaction.editReply(`Created /${name}.`);
-      } catch (error) {
-        if (error instanceof UniqueConstraintError) {
-          await interaction.editReply(`/${name} already exists in this server.`);
-          return;
-        }
-        logger.error({ error, guildId: interaction.guildId, name }, "Failed to create command");
-        await interaction.editReply("Discord could not create that command. No code was saved.");
-      }
-      return;
-    }
 
     if (subcommand === "delete") {
       const name = interaction.options.getString("name", true);
@@ -226,4 +123,38 @@ const managementCommand: CmdHandler = [
   },
 ];
 
-export default { "custom-command": managementCommand };
+const helpCommand: CmdHandler = [
+  new SlashCommandBuilder()
+    .setName("create-command")
+    .setDescription("Learn how to declare a sandboxed custom command")
+    .setDMPermission(false)
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
+    .addSubcommand((subcommand) =>
+      subcommand.setName("help").setDescription("Show declaration syntax and sandbox features"),
+    ),
+  async (interaction) => {
+    await interaction.reply({
+      flags: MessageFlags.Ephemeral,
+      allowedMentions: { parse: [] },
+      content: [
+        "Send `;declare-command` followed by one fenced Python or JavaScript function.",
+        "",
+        "```py",
+        "def test(good: str):",
+        '    \"\"\"Turn text into emojis\"\"\"',
+        "    print(' '.join(f':regional_indicator_{c}:' for c in good))",
+        "```",
+        "The function name, docstring, typed parameters, and literal defaults define the command.",
+        "Python types: `str`, `int`, `float`, `bool`. Safe imports: `math`, `random`, `statistics`, `re`, `json`.",
+        "Comprehensions, generators, and safe string methods such as `join`, `split`, `replace`, `lower`, and `upper` are supported.",
+        "Useful built-ins include `len`, `range`, `enumerate`, `zip`, `sorted`, `all`, `any`, `min`, `max`, and `sum`.",
+        "Manage declarations with `/custom-command list` and `/custom-command delete`.",
+      ].join("\n"),
+    });
+  },
+];
+
+export default {
+  "custom-command": managementCommand,
+  "create-command": helpCommand,
+};
