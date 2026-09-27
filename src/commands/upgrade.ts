@@ -15,14 +15,14 @@ const version: CmdHandler = [
     .setName("version")
     .setDescription("Get the current version of the bot."),
   async (interaction) => {
-    const proc = Bun.spawn({ cmd: ["git", "log", "-1", "--pretty=format:%h %s (%ci)"] });
+    const proc = Bun.spawn({ cmd: ["git", "log", "-1", "--oneline"] });
     await proc.exited;
 
     if (proc.exitCode !== 0)
       await interaction.reply("Failed to get version. Please check the logs for details.");
     else {
       const output = await new Response(proc.stdout).text();
-      await interaction.reply(`Current version: ${output}`);
+      await interaction.reply(`Current version: \`${output.trim()}\``);
     }
   },
 ];
