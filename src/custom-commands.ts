@@ -1,6 +1,6 @@
 import { REST, Routes, SlashCommandBuilder } from "discord.js";
 
-import { CustomCommand, CustomCommandParameter } from "@/db";
+import sequelize, { CustomCommand, CustomCommandParameter } from "@/db";
 import logger from "@/logger";
 import { executeSandbox } from "@/sandbox";
 
@@ -8,7 +8,6 @@ import type { SandboxLanguage, SandboxParameterType } from "@/sandbox";
 import type { ChatInputCommandInteraction, Guild } from "discord.js";
 
 const RESERVED_COMMAND_NAMES = new Set([
-  "create-command",
   "custom-command",
   "decrypt",
   "encrypt",
@@ -369,6 +368,81 @@ const createCustomCommand = async ({
   }
 };
 
+const updateCustomCommand = async ({
+  guild,
+  name,
+  description,
+  language,
+  code,
+  parameters,
+}: {
+  guild: Guild;
+  name: string;
+  description: string;
+  language: SandboxLanguage;
+  code: string;
+  parameters: CustomCommandParameterDefinition[];
+}) => {
+  const record = await CustomCommand.findOne({ where: { guildId: guild.id, name } });
+  if (!record) return null;
+
+  const previousParameters = await getCustomCommandParameters(record);
+  const previousValues = {
+    commandId: record.get("commandId") as string | null,
+    description: getString(record, "description"),
+    language: getString(record, "language"),
+    code: getString(record, "code"),
+    includeInput: record.get("includeInput") as boolean,
+  };
+  const registered = await guild.commands.fetch();
+  const existing = registered.find(
+    (command) => command.id === previousValues.commandId || command.name === name,
+  );
+  let savedCommandId: string | null = null;
+
+  record.set({ description, language, code, includeInput: false });
+  try {
+    const saved = existing
+      ? await existing.edit(buildCustomCommand(record, parameters))
+      : await guild.commands.create(buildCustomCommand(record, parameters));
+    savedCommandId = saved.id;
+
+    await sequelize.transaction(async (transaction) => {
+      record.set("commandId", saved.id);
+      await record.save({
+        transaction,
+        fields: ["commandId", "description", "language", "code", "includeInput"],
+      });
+      await CustomCommandParameter.destroy({
+        where: { customCommandId: record.get("id") as number },
+        transaction,
+      });
+      await CustomCommandParameter.bulkCreate(
+        parameters.map((parameter) => ({
+          customCommandId: record.get("id") as number,
+          ...parameter,
+          defaultValue:
+            parameter.defaultValue === null ? null : JSON.stringify(parameter.defaultValue),
+        })),
+        { transaction },
+      );
+    });
+    return record;
+  } catch (error) {
+    record.set(previousValues);
+    try {
+      if (existing) await existing.edit(buildCustomCommand(record, previousParameters));
+      else if (savedCommandId) await guild.commands.delete(savedCommandId);
+    } catch (rollbackError) {
+      logger.error(
+        { rollbackError, guildId: guild.id, name },
+        "Failed to restore Discord command after update failure",
+      );
+    }
+    throw error;
+  }
+};
+
 const validateCustomCommandName = (name: string) => {
   if (!CUSTOM_COMMAND_NAME.test(name))
     return "Names must be 1–32 lowercase letters, numbers, hyphens, or underscores.";
@@ -484,6 +558,7 @@ export {
   handleCustomCommand,
   renderCustomCommandDeclaration,
   syncCustomCommands,
+  updateCustomCommand,
   validateCustomCommandName,
   validateCustomCommandParameters,
 };

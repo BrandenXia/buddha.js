@@ -13,6 +13,23 @@ import logger from "@/logger";
 import type { CmdHandler } from "@/commands";
 import type { CustomCommandParameterDefinition } from "@/custom-commands";
 
+const CUSTOM_COMMAND_HELP = [
+  "Create a command by sending `;declare-command` followed by one fenced Python or JavaScript function.",
+  "Update an existing command with the same declaration using `;update-command`; the function name selects the command to replace.",
+  "",
+  "```py",
+  "def test(good: str):",
+  '    """Turn text into emojis"""',
+  "    print(' '.join(f':regional_indicator_{c}:' for c in good))",
+  "```",
+  "The function name, docstring, typed parameters, and literal defaults define the command.",
+  "Python types: `str`, `int`, `float`, `bool`. Safe imports: `math`, `random`, `statistics`, `re`, `json`.",
+  "Comprehensions, generators, and safe string methods such as `join`, `split`, `replace`, `lower`, and `upper` are supported.",
+  "Useful built-ins include `len`, `range`, `enumerate`, `zip`, `sorted`, `all`, `any`, `min`, `max`, and `sum`.",
+  "Higher-order helpers include Python `map`/`filter` with lambdas, and JavaScript `map`/`filter`/`join` with single-expression arrow callbacks.",
+  "View saved source with `/custom-command code`; manage declarations with `/custom-command list` and `/custom-command delete`.",
+].join("\n");
+
 const managementCommand: CmdHandler = [
   new SlashCommandBuilder()
     .setName("custom-command")
@@ -34,6 +51,9 @@ const managementCommand: CmdHandler = [
         .addStringOption((option) =>
           option.setName("name").setDescription("Command name").setRequired(true),
         ),
+    )
+    .addSubcommand((subcommand) =>
+      subcommand.setName("help").setDescription("Show declaration syntax and sandbox features"),
     )
     .addSubcommand((subcommand) =>
       subcommand
@@ -58,6 +78,14 @@ const managementCommand: CmdHandler = [
 
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
     const subcommand = interaction.options.getSubcommand();
+
+    if (subcommand === "help") {
+      await interaction.editReply({
+        content: CUSTOM_COMMAND_HELP,
+        allowedMentions: { parse: [] },
+      });
+      return;
+    }
 
     if (subcommand === "code") {
       const name = interaction.options.getString("name", true);
@@ -172,39 +200,6 @@ const managementCommand: CmdHandler = [
   },
 ];
 
-const helpCommand: CmdHandler = [
-  new SlashCommandBuilder()
-    .setName("create-command")
-    .setDescription("Learn how to declare a sandboxed custom command")
-    .setDMPermission(false)
-    .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
-    .addSubcommand((subcommand) =>
-      subcommand.setName("help").setDescription("Show declaration syntax and sandbox features"),
-    ),
-  async (interaction) => {
-    await interaction.reply({
-      flags: MessageFlags.Ephemeral,
-      allowedMentions: { parse: [] },
-      content: [
-        "Send `;declare-command` followed by one fenced Python or JavaScript function.",
-        "",
-        "```py",
-        "def test(good: str):",
-        '    \"\"\"Turn text into emojis\"\"\"',
-        "    print(' '.join(f':regional_indicator_{c}:' for c in good))",
-        "```",
-        "The function name, docstring, typed parameters, and literal defaults define the command.",
-        "Python types: `str`, `int`, `float`, `bool`. Safe imports: `math`, `random`, `statistics`, `re`, `json`.",
-        "Comprehensions, generators, and safe string methods such as `join`, `split`, `replace`, `lower`, and `upper` are supported.",
-        "Useful built-ins include `len`, `range`, `enumerate`, `zip`, `sorted`, `all`, `any`, `min`, `max`, and `sum`.",
-        "Higher-order helpers include Python `map`/`filter` with lambdas, and JavaScript `map`/`filter`/`join` with single-expression arrow callbacks.",
-        "View saved source with `/custom-command code`; manage declarations with `/custom-command list` and `/custom-command delete`.",
-      ].join("\n"),
-    });
-  },
-];
-
 export default {
   "custom-command": managementCommand,
-  "create-command": helpCommand,
 };

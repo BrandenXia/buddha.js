@@ -3,6 +3,7 @@ import { UniqueConstraintError } from "sequelize";
 
 import {
   createCustomCommand,
+  updateCustomCommand,
   validateCustomCommandName,
   validateCustomCommandParameters,
 } from "@/custom-commands";
@@ -12,24 +13,31 @@ import { parseSandboxDeclaration, validateSandboxSource } from "@/sandbox";
 import type { SandboxLanguage } from "@/sandbox";
 import type { Message } from "discord.js";
 
-const DECLARATION_PREFIX = ";declare-command";
+const DECLARATION_PREFIXES = [";declare-command", ";update-command"] as const;
 const DECLARATION_PATTERN =
-  /^;declare-command[ \t]*\r?\n```([^\r\n]+)\r?\n([\s\S]*?)\r?\n```[ \t]*$/;
+  /^;(declare|update)-command[ \t]*\r?\n```([^\r\n]+)\r?\n([\s\S]*?)\r?\n```[ \t]*$/;
 
 type DeclarationMessageResult =
-  | { ok: true; language: SandboxLanguage; code: string }
+  | {
+      ok: true;
+      operation: "create" | "update";
+      language: SandboxLanguage;
+      code: string;
+    }
   | { ok: false; error: string };
 
 const parseDeclarationMessage = (content: string): DeclarationMessageResult => {
   const match = DECLARATION_PATTERN.exec(content.trim());
+  const command = content.trimStart().startsWith(";update-command")
+    ? ";update-command"
+    : ";declare-command";
   if (!match)
     return {
       ok: false,
-      error:
-        "Use `;declare-command` followed by one fenced `py`, `python`, `js`, or `javascript` function.",
+      error: `Use \`${command}\` followed by one fenced \`py\`, \`python\`, \`js\`, or \`javascript\` function.`,
     };
 
-  const languageName = match[1]!.trim().toLowerCase();
+  const languageName = match[2]!.trim().toLowerCase();
   const language =
     languageName === "py" || languageName === "python"
       ? "python"
@@ -41,19 +49,25 @@ const parseDeclarationMessage = (content: string): DeclarationMessageResult => {
       ok: false,
       error: "The code fence language must be `py`, `python`, `js`, or `javascript`.",
     };
-  return { ok: true, language, code: match[2]! };
+  return {
+    ok: true,
+    operation: match[1] === "update" ? "update" : "create",
+    language,
+    code: match[3]!,
+  };
 };
 
 const replyWithoutMentions = (message: Message, content: string) =>
   message.reply({ content, allowedMentions: { parse: [], repliedUser: false } });
 
 const handleCommandDeclaration = async (message: Message) => {
-  if (!message.content.trimStart().startsWith(DECLARATION_PREFIX)) return false;
+  if (!DECLARATION_PREFIXES.some((prefix) => message.content.trimStart().startsWith(prefix)))
+    return false;
 
   if (!message.guild || !message.member?.permissions.has(PermissionFlagsBits.ManageGuild)) {
     await replyWithoutMentions(
       message,
-      "You need the Manage Server permission to declare custom commands.",
+      "You need the Manage Server permission to manage custom commands.",
     );
     return true;
   }
@@ -96,28 +110,52 @@ const handleCommandDeclaration = async (message: Message) => {
   }
 
   try {
-    await createCustomCommand({
-      guild: message.guild,
-      createdBy: message.author.id,
-      name: declaration.name,
-      description: declaration.description,
-      language: parsedMessage.language,
-      code: declaration.code,
-      parameters: declaration.parameters,
-      includeInput: false,
-    });
-    await replyWithoutMentions(message, `Created /${declaration.name} from the declaration.`);
+    if (parsedMessage.operation === "update") {
+      const updated = await updateCustomCommand({
+        guild: message.guild,
+        name: declaration.name,
+        description: declaration.description,
+        language: parsedMessage.language,
+        code: declaration.code,
+        parameters: declaration.parameters,
+      });
+      await replyWithoutMentions(
+        message,
+        updated
+          ? `Updated /${declaration.name} from the declaration.`
+          : `/${declaration.name} does not exist in this server. Use \`;declare-command\` to create it.`,
+      );
+    } else {
+      await createCustomCommand({
+        guild: message.guild,
+        createdBy: message.author.id,
+        name: declaration.name,
+        description: declaration.description,
+        language: parsedMessage.language,
+        code: declaration.code,
+        parameters: declaration.parameters,
+        includeInput: false,
+      });
+      await replyWithoutMentions(message, `Created /${declaration.name} from the declaration.`);
+    }
   } catch (error) {
-    if (error instanceof UniqueConstraintError)
+    if (parsedMessage.operation === "create" && error instanceof UniqueConstraintError)
       await replyWithoutMentions(message, `/${declaration.name} already exists in this server.`);
     else {
       logger.error(
-        { error, guildId: message.guild.id, name: declaration.name },
-        "Failed to create declared command",
+        {
+          error,
+          guildId: message.guild.id,
+          name: declaration.name,
+          operation: parsedMessage.operation,
+        },
+        "Failed to save declared command",
       );
       await replyWithoutMentions(
         message,
-        "Discord could not create that command. No code was saved.",
+        parsedMessage.operation === "update"
+          ? "Discord could not update that command. The stored declaration was not changed."
+          : "Discord could not create that command. No code was saved.",
       );
     }
   }
