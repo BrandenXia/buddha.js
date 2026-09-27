@@ -4,13 +4,9 @@ import type { CmdHandler } from "@/commands";
 
 const upgrade: CmdHandler = [
   new SlashCommandBuilder().setName("upgrade").setDescription("Upgrade the bot!"),
-  async (interaction) => {
+  async (_) => {
     const proc = Bun.spawn({ cmd: ["git", "pull"] });
     await proc.exited;
-
-    if (proc.exitCode !== 0)
-      await interaction.reply("Upgrade failed. Please check the logs for details.");
-    else await interaction.reply("Upgrade successful!");
   },
 ];
 
@@ -24,7 +20,10 @@ const version: CmdHandler = [
 
     if (proc.exitCode !== 0)
       await interaction.reply("Failed to get version. Please check the logs for details.");
-    else await interaction.reply(`Current version: ${proc.stdout.toString()}`);
+    else {
+      const output = await new Response(proc.stdout).text();
+      await interaction.reply(`Current version: ${output}`);
+    }
   },
 ];
 
