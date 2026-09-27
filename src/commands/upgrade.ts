@@ -1,4 +1,4 @@
-import { SlashCommandBuilder } from "discord.js";
+import { EmbedBuilder, SlashCommandBuilder } from "discord.js";
 
 import type { CmdHandler } from "@/commands";
 
@@ -22,7 +22,27 @@ const version: CmdHandler = [
       await interaction.reply("Failed to get version. Please check the logs for details.");
     else {
       const output = await new Response(proc.stdout).text();
-      await interaction.reply(`Current version: \`${output.trim()}\``);
+      const [hash, message, date] = output.trim().split("\n");
+
+      const embed = new EmbedBuilder()
+        .setTitle("Buddha Version")
+        .setDescription(`**${message}**`)
+        .addFields(
+          {
+            name: "Commit",
+            value: `\`${hash}\``,
+            inline: true,
+          },
+          {
+            name: "Updated",
+            value: date,
+            inline: true,
+          },
+        )
+        .setColor(0x5865f2)
+        .setFooter({ text: "Running version" });
+
+      await interaction.reply({ embeds: [embed] });
     }
   },
 ];
