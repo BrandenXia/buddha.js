@@ -50,6 +50,7 @@ const RESERVED_PARAMETER_NAMES = new Set([
   "export",
   "extends",
   "false",
+  "filter",
   "finally",
   "float",
   "floor",
@@ -64,10 +65,12 @@ const RESERVED_PARAMETER_NAMES = new Set([
   "instanceof",
   "int",
   "is",
+  "join",
   "lambda",
   "len",
   "let",
   "match",
+  "map",
   "max",
   "min",
   "new",
@@ -128,6 +131,72 @@ const parameterFromModel = (
     defaultValue: storedDefault === null ? null : (JSON.parse(storedDefault) as never),
     position: parameter.get("position") as number,
   };
+};
+
+const getCustomCommandParameters = async (command: CustomCommand) => {
+  const parameters = await CustomCommandParameter.findAll({
+    where: { customCommandId: command.get("id") as number },
+    order: [["position", "ASC"]],
+  });
+  return parameters.map(parameterFromModel);
+};
+
+const renderCustomCommandDeclaration = (
+  command: CustomCommand,
+  parameters: CustomCommandParameterDefinition[],
+) => {
+  const language = getString(command, "language") as SandboxLanguage;
+  const name = getString(command, "name");
+  const description = getString(command, "description");
+  const code = getString(command, "code");
+  const orderedParameters = [...parameters].sort((left, right) => left.position - right.position);
+  const indent = (source: string) =>
+    source
+      .split("\n")
+      .map((line) => (line.length > 0 ? `    ${line}` : line))
+      .join("\n");
+
+  if (language === "python") {
+    const typeNames: Record<SandboxParameterType, string> = {
+      string: "str",
+      integer: "int",
+      number: "float",
+      boolean: "bool",
+    };
+    const literal = (value: string | number | boolean) =>
+      typeof value === "boolean" ? (value ? "True" : "False") : JSON.stringify(value);
+    const signature = orderedParameters
+      .map((parameter) => {
+        const definition = `${parameter.name}: ${typeNames[parameter.type]}`;
+        if (parameter.required) return definition;
+        return `${definition} = ${literal(defaultArgumentValue(parameter))}`;
+      })
+      .join(", ");
+    return [`def ${name}(${signature}):`, `    ${JSON.stringify(description)}`, indent(code)].join(
+      "\n",
+    );
+  }
+
+  const typeNames: Record<SandboxParameterType, string> = {
+    string: "string",
+    integer: "integer",
+    number: "number",
+    boolean: "boolean",
+  };
+  const signature = orderedParameters
+    .map((parameter) => {
+      const type = typeNames[parameter.type];
+      if (parameter.required) return `${parameter.name}: ${type}`;
+      if (parameter.defaultValue === null) return `${parameter.name}?: ${type}`;
+      return `${parameter.name}: ${type} = ${JSON.stringify(parameter.defaultValue)}`;
+    })
+    .join(", ");
+  return [
+    `function ${name}(${signature}) {`,
+    `    ${JSON.stringify(description)};`,
+    code,
+    "}",
+  ].join("\n");
 };
 
 const validateCustomCommandParameters = (
@@ -315,11 +384,7 @@ const handleCustomCommand = async (interaction: ChatInputCommandInteraction) => 
   });
   if (!command) return false;
 
-  const parameters = await CustomCommandParameter.findAll({
-    where: { customCommandId: command.get("id") as number },
-    order: [["position", "ASC"]],
-  });
-  const parameterDefinitions = parameters.map(parameterFromModel);
+  const parameterDefinitions = await getCustomCommandParameters(command);
 
   await interaction.deferReply();
   const result = await executeSandbox(
@@ -415,7 +480,9 @@ const syncCustomCommands = async (rest: REST, clientId: string) => {
 export {
   buildCustomCommand,
   createCustomCommand,
+  getCustomCommandParameters,
   handleCustomCommand,
+  renderCustomCommandDeclaration,
   syncCustomCommands,
   validateCustomCommandName,
   validateCustomCommandParameters,

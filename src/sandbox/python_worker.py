@@ -64,6 +64,8 @@ SAFE_FUNCTIONS = {
     "round",
     "min",
     "max",
+    "map",
+    "filter",
     "sum",
     "sorted",
     "chr",
@@ -77,6 +79,21 @@ SAFE_FUNCTIONS = {
     "tuple",
     "zip",
 }
+SAFE_CALLBACK_FUNCTIONS = {
+    "abs",
+    "ascii",
+    "bin",
+    "bool",
+    "chr",
+    "float",
+    "hex",
+    "int",
+    "len",
+    "ord",
+    "round",
+    "str",
+}
+HIGHER_ORDER_FUNCTIONS = {"map", "filter"}
 BASE_SAFE_INPUTS = {"input", "user_name"}
 
 SAFE_STRING_METHODS = {
@@ -248,6 +265,9 @@ ALLOWED_NODES = {
     ast.SetComp,
     ast.DictComp,
     ast.comprehension,
+    ast.Lambda,
+    ast.arguments,
+    ast.arg,
     ast.BinOp,
     ast.UnaryOp,
     ast.BoolOp,
@@ -399,6 +419,45 @@ def validate_source(code, parameter_names):
     declarations = {
         node.id for node in ast.walk(tree) if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Store)
     }
+    lambda_argument_names = set()
+    callback_nodes = set()
+    callback_function_names = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
+            if node.func.id in HIGHER_ORDER_FUNCTIONS:
+                if len(node.args) != 2 or node.keywords:
+                    raise ValidationError(f"{node.func.id}() expects a callback and one iterable.")
+                callback = node.args[0]
+                if isinstance(callback, ast.Lambda):
+                    callback_nodes.add(id(callback))
+                elif isinstance(callback, ast.Name) and callback.id in SAFE_CALLBACK_FUNCTIONS:
+                    callback_function_names.add(id(callback))
+                else:
+                    raise ValidationError(
+                        f"{node.func.id}() callbacks must be a lambda or a documented conversion function."
+                    )
+        if isinstance(node, ast.Lambda):
+            arguments = node.args
+            if (
+                len(arguments.args) != 1
+                or arguments.posonlyargs
+                or arguments.kwonlyargs
+                or arguments.vararg
+                or arguments.kwarg
+                or arguments.defaults
+                or arguments.kw_defaults
+            ):
+                raise ValidationError("Higher-order callbacks need one simple parameter.")
+            name = arguments.args[0].arg
+            if (
+                not name.isascii()
+                or not name.isidentifier()
+                or keyword.iskeyword(name)
+                or name.startswith("_")
+                or name in SAFE_FUNCTIONS | safe_inputs
+            ):
+                raise ValidationError("Invalid callback parameter name.")
+            lambda_argument_names.add(name)
     direct_call_names = {
         id(node.func)
         for node in ast.walk(tree)
@@ -423,17 +482,30 @@ def validate_source(code, parameter_names):
                         "Only direct imports of math, random, statistics, re, and json are allowed."
                     )
                 imported_modules.add(alias.name)
-    for name in declarations:
+    for name in declarations | lambda_argument_names:
         if name.startswith("_") or name in SAFE_FUNCTIONS or name in safe_inputs:
             raise ValidationError(f"Variable name '{name}' is reserved.")
 
     for node in ast.walk(tree):
         if type(node) not in ALLOWED_NODES:
             raise ValidationError(f"{type(node).__name__} syntax is not allowed.")
+        if isinstance(node, ast.Lambda) and id(node) not in callback_nodes:
+            raise ValidationError("Lambda functions may only be used as map() or filter() callbacks.")
         if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load):
-            if node.id not in declarations | SAFE_FUNCTIONS | safe_inputs | imported_modules:
+            if (
+                node.id
+                not in declarations
+                | lambda_argument_names
+                | SAFE_FUNCTIONS
+                | safe_inputs
+                | imported_modules
+            ):
                 raise ValidationError(f"Name '{node.id}' is not available.")
-            if node.id in SAFE_FUNCTIONS and id(node) not in direct_call_names:
+            if (
+                node.id in SAFE_FUNCTIONS
+                and id(node) not in direct_call_names
+                and id(node) not in callback_function_names
+            ):
                 raise ValidationError("Sandbox functions may only be used as direct calls.")
             if node.id in imported_modules and id(node) not in attribute_bases:
                 raise ValidationError("Imported modules may only be used through safe attributes.")
@@ -594,6 +666,8 @@ def execute(tree, context, parameter_names):
         "round": round,
         "min": min,
         "max": max,
+        "map": map,
+        "filter": filter,
         "sum": sum,
         "sorted": sorted,
         "chr": chr,

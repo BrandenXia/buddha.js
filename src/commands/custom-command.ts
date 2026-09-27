@@ -1,5 +1,12 @@
-import { MessageFlags, PermissionFlagsBits, SlashCommandBuilder } from "discord.js";
+import { Buffer } from "node:buffer";
+import {
+  AttachmentBuilder,
+  MessageFlags,
+  PermissionFlagsBits,
+  SlashCommandBuilder,
+} from "discord.js";
 
+import { getCustomCommandParameters, renderCustomCommandDeclaration } from "@/custom-commands";
 import { CustomCommand, CustomCommandParameter } from "@/db";
 import logger from "@/logger";
 
@@ -12,6 +19,14 @@ const managementCommand: CmdHandler = [
     .setDescription("Manage this server's sandboxed custom commands")
     .setDMPermission(false)
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
+    .addSubcommand((subcommand) =>
+      subcommand
+        .setName("code")
+        .setDescription("Show a custom command's declaration")
+        .addStringOption((option) =>
+          option.setName("name").setDescription("Command name").setRequired(true),
+        ),
+    )
     .addSubcommand((subcommand) =>
       subcommand
         .setName("delete")
@@ -43,6 +58,40 @@ const managementCommand: CmdHandler = [
 
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
     const subcommand = interaction.options.getSubcommand();
+
+    if (subcommand === "code") {
+      const name = interaction.options.getString("name", true);
+      const record = await CustomCommand.findOne({
+        where: { guildId: interaction.guildId, name },
+      });
+      if (!record) {
+        await interaction.editReply(`/${name} does not exist in this server.`);
+        return;
+      }
+
+      const parameters = await getCustomCommandParameters(record);
+      const source = renderCustomCommandDeclaration(record, parameters);
+      const language = record.get("language") as string;
+      const fencedSource = `\`\`\`${language === "python" ? "py" : "js"}\n${source}\n\`\`\``;
+      if (fencedSource.length <= 2_000 && !source.includes("```")) {
+        await interaction.editReply({
+          content: fencedSource,
+          allowedMentions: { parse: [] },
+        });
+      } else {
+        const extension = language === "python" ? "py" : "js";
+        await interaction.editReply({
+          content: `Source for /${name}:`,
+          files: [
+            new AttachmentBuilder(Buffer.from(source, "utf8"), {
+              name: `${name}.${extension}`,
+            }),
+          ],
+          allowedMentions: { parse: [] },
+        });
+      }
+      return;
+    }
 
     if (subcommand === "delete") {
       const name = interaction.options.getString("name", true);
@@ -148,7 +197,8 @@ const helpCommand: CmdHandler = [
         "Python types: `str`, `int`, `float`, `bool`. Safe imports: `math`, `random`, `statistics`, `re`, `json`.",
         "Comprehensions, generators, and safe string methods such as `join`, `split`, `replace`, `lower`, and `upper` are supported.",
         "Useful built-ins include `len`, `range`, `enumerate`, `zip`, `sorted`, `all`, `any`, `min`, `max`, and `sum`.",
-        "Manage declarations with `/custom-command list` and `/custom-command delete`.",
+        "Higher-order helpers include Python `map`/`filter` with lambdas, and JavaScript `map`/`filter`/`join` with single-expression arrow callbacks.",
+        "View saved source with `/custom-command code`; manage declarations with `/custom-command list` and `/custom-command delete`.",
       ].join("\n"),
     });
   },

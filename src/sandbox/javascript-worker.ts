@@ -14,6 +14,8 @@ type Request = {
 
 const MAX_OUTPUT_LENGTH = 1_800;
 const EXECUTION_TIMEOUT_MS = 500;
+const MAX_COLLECTION_LENGTH = 1_000;
+const MAX_COLLECTION_SIZE = 32_000;
 const baseAllowedInputs = new Set(["input", "user_name", "undefined"]);
 const allowedCalls = new Set([
   "print",
@@ -29,6 +31,21 @@ const allowedCalls = new Set([
   "min",
   "max",
   "random",
+  "map",
+  "filter",
+  "join",
+]);
+const higherOrderCalls = new Set(["map", "filter"]);
+const allowedCallbackReferences = new Set([
+  "String",
+  "Number",
+  "Boolean",
+  "parseInt",
+  "parseFloat",
+  "abs",
+  "ceil",
+  "floor",
+  "round",
 ]);
 
 class ValidationError extends Error {}
@@ -66,6 +83,9 @@ const allowedNodeKinds = new Set<ts.SyntaxKind>([
   ts.SyntaxKind.PostfixUnaryExpression,
   ts.SyntaxKind.ConditionalExpression,
   ts.SyntaxKind.CallExpression,
+  ts.SyntaxKind.ArrowFunction,
+  ts.SyntaxKind.Parameter,
+  ts.SyntaxKind.EqualsGreaterThanToken,
 ]);
 
 const assignmentOperators = new Set<ts.SyntaxKind>([
@@ -154,6 +174,21 @@ const collectDeclarations = (sourceFile: ts.SourceFile, allowedInputs: Set<strin
         throw new ValidationError(`Variable name '${name}' is reserved.`);
       declarations.add(name);
     }
+    if (ts.isArrowFunction(node)) {
+      if (
+        node.parameters.length !== 1 ||
+        !ts.isIdentifier(node.parameters[0]!.name) ||
+        node.parameters[0]!.dotDotDotToken ||
+        node.parameters[0]!.initializer ||
+        node.parameters[0]!.questionToken ||
+        node.parameters[0]!.type
+      )
+        throw new ValidationError("Higher-order callbacks need one simple parameter.");
+      const name = node.parameters[0]!.name.text;
+      if (name.startsWith("_") || allowedInputs.has(name) || allowedCalls.has(name))
+        throw new ValidationError(`Callback parameter '${name}' is reserved.`);
+      declarations.add(name);
+    }
     ts.forEachChild(node, visit);
   };
 
@@ -233,10 +268,33 @@ const validateSource = (code: string, parameterNames: string[]) => {
         "Local variables may store numbers and booleans only; print strings directly.",
       );
 
+    if (ts.isArrowFunction(node)) {
+      const parent = node.parent;
+      const isHigherOrderCallback =
+        ts.isCallExpression(parent) &&
+        parent.arguments[0] === node &&
+        ts.isIdentifier(parent.expression) &&
+        higherOrderCalls.has(parent.expression.text);
+      if (!isHigherOrderCallback)
+        throw new ValidationError(
+          "Arrow functions may only be used as map() or filter() callbacks.",
+        );
+      if (ts.isBlock(node.body) || node.modifiers?.length)
+        throw new ValidationError("Higher-order callbacks must be a single expression.");
+    }
+
     if (ts.isIdentifier(node)) {
-      const isDeclaration = ts.isVariableDeclaration(node.parent) && node.parent.name === node;
+      const isDeclaration =
+        (ts.isVariableDeclaration(node.parent) && node.parent.name === node) ||
+        (ts.isParameter(node.parent) && node.parent.name === node);
       const isDirectCall = ts.isCallExpression(node.parent) && node.parent.expression === node;
-      if (allowedCalls.has(node.text) && !isDirectCall)
+      const isHigherOrderCallback =
+        ts.isCallExpression(node.parent) &&
+        node.parent.arguments[0] === node &&
+        ts.isIdentifier(node.parent.expression) &&
+        higherOrderCalls.has(node.parent.expression.text) &&
+        allowedCallbackReferences.has(node.text);
+      if (allowedCalls.has(node.text) && !isDirectCall && !isHigherOrderCallback)
         throw new ValidationError("Sandbox functions may only be used as direct calls.");
       if (
         !isDeclaration &&
@@ -252,6 +310,18 @@ const validateSource = (code: string, parameterNames: string[]) => {
         throw new ValidationError("Only documented sandbox functions may be called.");
       if (node.arguments.some(ts.isSpreadElement))
         throw new ValidationError("Spread arguments are not allowed.");
+      if (higherOrderCalls.has(node.expression.text)) {
+        const callback = node.arguments[0];
+        const validCallback =
+          ts.isArrowFunction(callback) ||
+          (ts.isIdentifier(callback) && allowedCallbackReferences.has(callback.text));
+        if (node.arguments.length !== 2 || !validCallback)
+          throw new ValidationError(
+            `${node.expression.text}() expects a callback and one collection.`,
+          );
+      }
+      if (node.expression.text === "join" && ![1, 2].includes(node.arguments.length))
+        throw new ValidationError("join() expects a collection and optional separator.");
     }
 
     if (ts.isBinaryExpression(node)) {
@@ -426,6 +496,50 @@ const formatValue = (value: unknown) => {
   throw new Error("print() accepts primitive values only.");
 };
 
+type CollectionValue = string | number | boolean;
+
+const collectionValues = (value: unknown): CollectionValue[] => {
+  const values =
+    typeof value === "string"
+      ? Array.from(value)
+      : Array.isArray(value)
+        ? value
+        : (() => {
+            throw new Error("Higher-order functions accept strings or sandbox collections.");
+          })();
+  if (values.length > MAX_COLLECTION_LENGTH)
+    throw new Error(`Collections are limited to ${MAX_COLLECTION_LENGTH.toLocaleString()} values.`);
+  if (values.some((item) => !["string", "number", "boolean"].includes(typeof item)))
+    throw new Error("Collections may contain primitive values only.");
+  return values as CollectionValue[];
+};
+
+const checkCollectionSize = (values: CollectionValue[]) => {
+  const size = values.reduce<number>((total, value) => total + String(value).length, 0);
+  if (size > MAX_COLLECTION_SIZE) throw new Error("Working value limit exceeded.");
+  return Object.freeze(values);
+};
+
+const safeMap = (callback: unknown, collection: unknown) => {
+  if (typeof callback !== "function") throw new Error("map() requires a callback.");
+  const result = collectionValues(collection).map((value) => callback(value) as unknown);
+  if (result.some((value) => !["string", "number", "boolean"].includes(typeof value)))
+    throw new Error("map() callbacks must return primitive values.");
+  return checkCollectionSize(result as CollectionValue[]);
+};
+
+const safeFilter = (callback: unknown, collection: unknown) => {
+  if (typeof callback !== "function") throw new Error("filter() requires a callback.");
+  return checkCollectionSize(collectionValues(collection).filter((value) => callback(value)));
+};
+
+const safeJoin = (collection: unknown, separator = "") => {
+  if (typeof separator !== "string") throw new Error("join() separator must be text.");
+  const result = collectionValues(collection).join(separator);
+  if (result.length > MAX_COLLECTION_SIZE) throw new Error("Working value limit exceeded.");
+  return result;
+};
+
 const execute = (code: string, request: Request, parameterNames: string[]) => {
   const lines: string[] = [];
   let outputLength = 0;
@@ -452,6 +566,9 @@ const execute = (code: string, request: Request, parameterNames: string[]) => {
     min: Math.min,
     max: Math.max,
     random: Math.random,
+    map: safeMap,
+    filter: safeFilter,
+    join: safeJoin,
   };
   for (const name of parameterNames) {
     const value = request.context?.arguments?.[name];
