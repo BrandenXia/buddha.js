@@ -76,7 +76,7 @@ const managementCommand: CmdHandler = [
       return;
     }
 
-    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+    await interaction.deferReply();
     const subcommand = interaction.options.getSubcommand();
 
     if (subcommand === "help") {
