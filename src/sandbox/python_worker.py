@@ -78,6 +78,7 @@ SAFE_FUNCTIONS = {
     "set",
     "tuple",
     "zip",
+    "next",
 }
 SAFE_CALLBACK_FUNCTIONS = {
     "abs",
