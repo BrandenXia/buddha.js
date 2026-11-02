@@ -23,7 +23,7 @@ const CUSTOM_COMMAND_HELP = [
   "    print(' '.join(f':regional_indicator_{c}:' for c in good))",
   "```",
   "The function name, docstring, typed parameters, and literal defaults define the command.",
-  "Python types: `str`, `int`, `float`, `bool`. Safe imports: `math`, `random`, `statistics`, `re`, `json`.",
+  "Python types: `str`, `int`, `float`, `bool`. Safe imports (including `import ... as ...`): `math`, `random`, `statistics`, `re`, `json`, `datetime`.",
   "Comprehensions, generators, and safe string methods such as `join`, `split`, `replace`, `lower`, and `upper` are supported.",
   "Useful built-ins include `len`, `range`, `enumerate`, `zip`, `sorted`, `all`, `any`, `min`, `max`, and `sum`.",
   "Higher-order helpers include Python `map`/`filter` with lambdas, and JavaScript `map`/`filter`/`join` with single-expression arrow callbacks.",

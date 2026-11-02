@@ -1,4 +1,6 @@
+import _strptime
 import ast
+import datetime
 import json
 import keyword
 import math
@@ -7,6 +9,7 @@ import re
 import resource
 import statistics
 import sys
+import time
 
 MAX_OUTPUT_LENGTH = 1_800
 MAX_OPERATIONS = 50_000
@@ -141,6 +144,7 @@ SAFE_STRING_METHODS = {
 }
 
 SAFE_MODULE_CALLS = {
+    "datetime": {"date", "datetime", "time", "timedelta", "timezone"},
     "json": {"dumps", "loads"},
     "math": {
         "acos",
@@ -231,15 +235,44 @@ SAFE_MODULE_CALLS = {
     },
 }
 SAFE_MODULE_VALUES = {
+    "datetime": {"MINYEAR", "MAXYEAR", "UTC"},
     "math": {"e", "inf", "nan", "pi", "tau"},
     "re": {"A", "ASCII", "I", "IGNORECASE", "M", "MULTILINE", "S", "DOTALL", "X", "VERBOSE"},
 }
 SAFE_MODULE_OBJECTS = {
+    "datetime": datetime,
     "json": json,
     "math": math,
     "random": random,
     "re": re,
     "statistics": statistics,
+}
+
+SAFE_DATETIME_CLASS_CALLS = {
+    "date": {"today", "fromtimestamp", "fromordinal", "fromisoformat", "fromisocalendar"},
+    "datetime": {
+        "today", "now", "utcnow", "fromtimestamp", "utcfromtimestamp", "fromordinal",
+        "fromisoformat", "fromisocalendar", "combine", "strptime",
+    },
+    "time": {"fromisoformat"},
+    "timedelta": set(),
+    "timezone": set(),
+}
+SAFE_DATETIME_CLASS_VALUES = {
+    "date": {"min", "max", "resolution"},
+    "datetime": {"min", "max", "resolution"},
+    "time": {"min", "max", "resolution"},
+    "timedelta": {"min", "max", "resolution"},
+    "timezone": {"utc", "min", "max"},
+}
+SAFE_DATETIME_METHODS = {
+    "astimezone", "ctime", "date", "dst", "isoformat", "isocalendar", "isoweekday",
+    "replace", "strftime", "time", "timestamp", "timetuple", "timetz", "toordinal",
+    "total_seconds", "tzname", "utcoffset", "utctimetuple", "weekday",
+}
+SAFE_DATETIME_VALUES = {
+    "year", "month", "day", "hour", "minute", "second", "microsecond", "tzinfo",
+    "fold", "days", "seconds", "microseconds",
 }
 
 ALLOWED_NODES = {
@@ -472,19 +505,32 @@ def validate_source(code, parameter_names):
     attribute_bases = {
         id(node.value)
         for node in ast.walk(tree)
-        if isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name)
+        if isinstance(node, ast.Attribute)
     }
-    imported_modules = set()
+    imported_modules = {}
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
             for alias in node.names:
-                if alias.asname or alias.name not in SAFE_MODULE_OBJECTS:
+                if alias.name not in SAFE_MODULE_OBJECTS:
                     raise ValidationError(
-                        "Only direct imports of math, random, statistics, re, and json are allowed."
+                        "Only imports of math, random, statistics, re, json, and datetime are allowed."
                     )
-                imported_modules.add(alias.name)
+                binding = alias.asname or alias.name
+                if (
+                    not binding.isascii()
+                    or binding.startswith("_")
+                    or binding in SAFE_FUNCTIONS | safe_inputs
+                ):
+                    raise ValidationError(f"Import name '{binding}' is reserved.")
+                if binding in imported_modules and imported_modules[binding] != alias.name:
+                    raise ValidationError(f"Import name '{binding}' is already in use.")
+                imported_modules[binding] = alias.name
     for name in declarations | lambda_argument_names:
-        if name.startswith("_") or name in SAFE_FUNCTIONS or name in safe_inputs:
+        if (
+            name.startswith("_")
+            or name in SAFE_FUNCTIONS | safe_inputs
+            or name in imported_modules
+        ):
             raise ValidationError(f"Variable name '{name}' is reserved.")
 
     for node in ast.walk(tree):
@@ -499,7 +545,7 @@ def validate_source(code, parameter_names):
                 | lambda_argument_names
                 | SAFE_FUNCTIONS
                 | safe_inputs
-                | imported_modules
+                | set(imported_modules)
             ):
                 raise ValidationError(f"Name '{node.id}' is not available.")
             if (
@@ -521,19 +567,39 @@ def validate_source(code, parameter_names):
             if node.attr.startswith("_"):
                 raise ValidationError("Private and reflective attributes are not allowed.")
             is_string_method = node.attr in SAFE_STRING_METHODS
-            is_module_call = (
-                isinstance(node.value, ast.Name)
-                and node.value.id in imported_modules
-                and node.attr in SAFE_MODULE_CALLS.get(node.value.id, set())
+            module_name = (
+                imported_modules.get(node.value.id)
+                if isinstance(node.value, ast.Name)
+                else None
             )
-            is_module_value = (
-                isinstance(node.value, ast.Name)
-                and node.value.id in imported_modules
-                and node.attr in SAFE_MODULE_VALUES.get(node.value.id, set())
+            is_module_call = node.attr in SAFE_MODULE_CALLS.get(module_name, set())
+            is_module_value = node.attr in SAFE_MODULE_VALUES.get(module_name, set())
+            datetime_class = None
+            if (
+                isinstance(node.value, ast.Attribute)
+                and isinstance(node.value.value, ast.Name)
+                and imported_modules.get(node.value.value.id) == "datetime"
+            ):
+                datetime_class = node.value.attr
+            is_datetime_class_call = node.attr in SAFE_DATETIME_CLASS_CALLS.get(datetime_class, set())
+            is_datetime_class_value = node.attr in SAFE_DATETIME_CLASS_VALUES.get(datetime_class, set())
+            is_datetime_method = node.attr in SAFE_DATETIME_METHODS
+            is_datetime_value = node.attr in SAFE_DATETIME_VALUES
+            is_datetime_class_base = (
+                module_name == "datetime"
+                and node.attr in SAFE_DATETIME_CLASS_CALLS
+                and id(node) in attribute_bases
             )
-            if not is_string_method and not is_module_call and not is_module_value:
+            if not any((
+                is_string_method, is_module_call, is_module_value, is_datetime_class_call,
+                is_datetime_class_value, is_datetime_method, is_datetime_value,
+            )):
                 raise ValidationError(f"Attribute '{node.attr}' is not available.")
-            if (is_string_method or is_module_call) and id(node) not in direct_call_attributes:
+            if (
+                (is_string_method or is_module_call or is_datetime_class_call or is_datetime_method)
+                and id(node) not in direct_call_attributes
+                and not is_datetime_class_base
+            ):
                 raise ValidationError("Sandbox methods may only be used as direct calls.")
         if isinstance(node, (ast.Assign, ast.AugAssign)):
             targets = node.targets if isinstance(node, ast.Assign) else [node.target]
@@ -617,7 +683,10 @@ def format_value(value, depth=0):
         raise ExecutionLimitError("Printed values are nested too deeply.")
     if value is None:
         return "None"
-    if type(value) in (str, int, float, bool):
+    if type(value) in (
+        str, int, float, bool, datetime.date, datetime.datetime,
+        datetime.time, datetime.timedelta, datetime.timezone,
+    ):
         return str(value)
     if type(value) in (list, tuple, set):
         if len(value) > 100:
@@ -636,7 +705,7 @@ def format_value(value, depth=0):
             f"{format_value(key, depth + 1)}: {format_value(item, depth + 1)}"
             for key, item in value.items()
         ) + "}"
-    raise ValidationError("print() accepts primitive values and simple collections only.")
+    raise ValidationError("print() accepts primitive values, datetime values, and simple collections only.")
 
 
 def execute(tree, context, parameter_names):
@@ -685,6 +754,10 @@ def execute(tree, context, parameter_names):
     }
 
     def safe_import(name, _globals=None, _locals=None, fromlist=(), level=0):
+        # datetime's C methods import these helpers through the caller's builtins.
+        # Source validation still only permits SAFE_MODULE_OBJECTS imports.
+        if level == 0 and not fromlist and name in {"time", "_strptime"}:
+            return time if name == "time" else _strptime
         if level != 0 or fromlist or name not in SAFE_MODULE_OBJECTS:
             raise ValidationError("That module import is not allowed.")
         return SAFE_MODULE_OBJECTS[name]
