@@ -316,6 +316,7 @@ ALLOWED_NODES = {
     ast.Break,
     ast.Continue,
     ast.Pass,
+    ast.Return,
     ast.Add,
     ast.Sub,
     ast.Mult,
@@ -453,45 +454,71 @@ def validate_source(code, parameter_names):
     declarations = {
         node.id for node in ast.walk(tree) if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Store)
     }
+    callable_assignments = [
+        node for node in ast.walk(tree)
+        if isinstance(node, ast.Assign)
+        and isinstance(node.value, (ast.Lambda, ast.Attribute))
+        and all(isinstance(target, ast.Name) for target in node.targets)
+    ]
+    local_callable_names = {
+        target.id for node in callable_assignments for target in node.targets
+    }
+    assigned_callable_nodes = {id(node.value) for node in callable_assignments}
     lambda_argument_names = set()
     callback_nodes = set()
     callback_function_names = set()
     for node in ast.walk(tree):
         if isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
             if node.func.id in HIGHER_ORDER_FUNCTIONS:
-                if len(node.args) != 2 or node.keywords:
-                    raise ValidationError(f"{node.func.id}() expects a callback and one iterable.")
+                if node.keywords or (
+                    len(node.args) < 2 if node.func.id == "map" else len(node.args) != 2
+                ):
+                    iterables = "one or more iterables" if node.func.id == "map" else "one iterable"
+                    raise ValidationError(f"{node.func.id}() expects a callback and {iterables}.")
                 callback = node.args[0]
                 if isinstance(callback, ast.Lambda):
+                    arguments = callback.args
+                    positional_count = len(arguments.posonlyargs) + len(arguments.args)
+                    required_count = positional_count - len(arguments.defaults)
+                    supplied_count = len(node.args) - 1
+                    if (
+                        supplied_count < required_count
+                        or (not arguments.vararg and supplied_count > positional_count)
+                        or any(default is None for default in arguments.kw_defaults)
+                    ):
+                        raise ValidationError(
+                            f"{node.func.id}() callback must accept {supplied_count} positional "
+                            "argument(s) without requiring keyword arguments."
+                        )
                     callback_nodes.add(id(callback))
-                elif isinstance(callback, ast.Name) and callback.id in SAFE_CALLBACK_FUNCTIONS:
+                elif (
+                    isinstance(callback, ast.Name)
+                    and callback.id in SAFE_CALLBACK_FUNCTIONS | local_callable_names
+                ):
                     callback_function_names.add(id(callback))
                 else:
                     raise ValidationError(
-                        f"{node.func.id}() callbacks must be a lambda or a documented conversion function."
+                        f"{node.func.id}() callbacks must be a lambda, a local callable, "
+                        "or a documented conversion function."
                     )
         if isinstance(node, ast.Lambda):
             arguments = node.args
-            if (
-                len(arguments.args) != 1
-                or arguments.posonlyargs
-                or arguments.kwonlyargs
-                or arguments.vararg
-                or arguments.kwarg
-                or arguments.defaults
-                or arguments.kw_defaults
-            ):
-                raise ValidationError("Higher-order callbacks need one simple parameter.")
-            name = arguments.args[0].arg
-            if (
-                not name.isascii()
-                or not name.isidentifier()
-                or keyword.iskeyword(name)
-                or name.startswith("_")
-                or name in SAFE_FUNCTIONS | safe_inputs
-            ):
-                raise ValidationError("Invalid callback parameter name.")
-            lambda_argument_names.add(name)
+            parameters = arguments.posonlyargs + arguments.args + arguments.kwonlyargs
+            if arguments.vararg:
+                parameters.append(arguments.vararg)
+            if arguments.kwarg:
+                parameters.append(arguments.kwarg)
+            for parameter in parameters:
+                name = parameter.arg
+                if (
+                    not name.isascii()
+                    or not name.isidentifier()
+                    or keyword.iskeyword(name)
+                    or name.startswith("_")
+                    or name in SAFE_FUNCTIONS | safe_inputs
+                ):
+                    raise ValidationError("Invalid callback parameter name.")
+                lambda_argument_names.add(name)
     direct_call_names = {
         id(node.func)
         for node in ast.walk(tree)
@@ -536,8 +563,11 @@ def validate_source(code, parameter_names):
     for node in ast.walk(tree):
         if type(node) not in ALLOWED_NODES:
             raise ValidationError(f"{type(node).__name__} syntax is not allowed.")
-        if isinstance(node, ast.Lambda) and id(node) not in callback_nodes:
-            raise ValidationError("Lambda functions may only be used as map() or filter() callbacks.")
+        if (
+            isinstance(node, ast.Lambda)
+            and id(node) not in callback_nodes | assigned_callable_nodes
+        ):
+            raise ValidationError("Lambda functions must be assigned locally or used as callbacks.")
         if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load):
             if (
                 node.id
@@ -557,7 +587,10 @@ def validate_source(code, parameter_names):
             if node.id in imported_modules and id(node) not in attribute_bases:
                 raise ValidationError("Imported modules may only be used through safe attributes.")
         if isinstance(node, ast.Call):
-            valid_name_call = isinstance(node.func, ast.Name) and node.func.id in SAFE_FUNCTIONS
+            valid_name_call = (
+                isinstance(node.func, ast.Name)
+                and node.func.id in SAFE_FUNCTIONS | local_callable_names
+            )
             valid_attribute_call = isinstance(node.func, ast.Attribute)
             if not valid_name_call and not valid_attribute_call:
                 raise ValidationError("Only documented sandbox functions may be called.")
@@ -598,6 +631,7 @@ def validate_source(code, parameter_names):
             if (
                 (is_string_method or is_module_call or is_datetime_class_call or is_datetime_method)
                 and id(node) not in direct_call_attributes
+                and id(node) not in assigned_callable_nodes
                 and not is_datetime_class_base
             ):
                 raise ValidationError("Sandbox methods may only be used as direct calls.")
@@ -765,6 +799,7 @@ def execute(tree, context, parameter_names):
     safe_builtins["__import__"] = safe_import
     namespace = {
         "__builtins__": safe_builtins,
+        "__sandbox_return": ResponseComplete,
         "input": context.get("input", "") if isinstance(context.get("input", ""), str) else "",
         "user_name": context.get("user_name", "")
         if isinstance(context.get("user_name", ""), str)
@@ -777,10 +812,29 @@ def execute(tree, context, parameter_names):
         value = arguments.get(name, "")
         namespace[name] = value if type(value) in (str, int, float, bool) else ""
 
+    class RewriteReturns(ast.NodeTransformer):
+        def visit_Return(self, node):
+            # Declarations run as module bodies. Emit returned values and stop
+            # execution using a private exception unavailable to sandbox code.
+            statements = []
+            if node.value is not None:
+                statements.append(ast.Expr(value=ast.Call(
+                    func=ast.Name(id="print", ctx=ast.Load()),
+                    args=[node.value],
+                    keywords=[],
+                )))
+            statements.append(ast.Raise(
+                exc=ast.Name(id="__sandbox_return", ctx=ast.Load()), cause=None,
+            ))
+            return [ast.copy_location(statement, node) for statement in statements]
+
+    tree = ast.fix_missing_locations(RewriteReturns().visit(tree))
     compiled = compile(tree, "<custom-command>", "exec")
     sys.settrace(make_trace())
     try:
         exec(compiled, namespace, namespace)
+    except ResponseComplete:
+        pass
     finally:
         sys.settrace(None)
 
