@@ -681,6 +681,7 @@ def execute(tree, context, parameter_names):
         "set": set,
         "tuple": tuple,
         "zip": zip,
+        "next": next,
     }
 
     def safe_import(name, _globals=None, _locals=None, fromlist=(), level=0):
